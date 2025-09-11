@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: src/orchestrator/Dockerfile
+    ports:
+      - "8000:8000"
+    networks:
+      - saka_network
+
+  kamila:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
+      args:
+        AGENT_NAME: kamila
+    depends_on:
+      - orchestrator
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+    networks:
+      - saka_network
+
+networks:
+  saka_network:
+    driver: bridge
