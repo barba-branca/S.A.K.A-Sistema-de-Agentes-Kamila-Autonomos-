@@ -1,103 +1,103 @@
 # S.A.K.A. - Sistema de Agentes Kamila Autônomos
 
-S.A.K.A. is a proof-of-concept autonomous AI startup composed of multiple specialized agents. The system is designed to be a scalable and modular platform for developing and coordinating AI agents for complex tasks, such as automated trading.
+S.A.K.A. é uma prova de conceito de uma startup de IA autônoma composta por múltiplos agentes especializados. O sistema foi projetado para ser uma plataforma escalável e modular para desenvolver e coordenar agentes de IA em tarefas complexas, como trading automatizado.
 
-Each agent runs in an isolated Docker container and communicates through a central Orchestrator, making the system robust and scalable.
+Cada agente executa em um contêiner Docker isolado e se comunica através de um Orquestrador central, tornando o sistema robusto e escalável.
 
-## Project Structure
+## Estrutura do Projeto
 
-The project is organized into the following main directories:
+O projeto está organizado nos seguintes diretórios principais:
 
--   `src/`: Contains all the Python source code.
-    -   `src/orchestrator/`: The central Orchestrator service that manages agents and routes communication.
-    -   `src/agents/`: Each subdirectory contains the implementation of a specific agent (e.g., `kamila`, `orion`).
-    -   `src/core/`: Shared components, including the `BaseAgent` class and other core services like the WhatsApp integration.
--   `tests/`: Contains unit tests for the project.
--   `scripts/`: Holds utility scripts, such as the `create_agent.py` script for generating new agent boilerplate.
--   `docs/`: For detailed documentation about the project's architecture and design.
--   `config/`: Intended for configuration files (currently unused).
+-   `src/`: Contém todo o código-fonte em Python.
+    -   `src/orchestrator/`: O serviço do Orquestrador central que gerencia os agentes e roteia a comunicação.
+    -   `src/agents/`: Cada subdiretório contém a implementação de um agente específico (ex: `kamila`, `orion`).
+    -   `src/core/`: Componentes compartilhados, incluindo a classe `BaseAgent` e outros serviços centrais, como a integração com o WhatsApp.
+-   `tests/`: Contém testes unitários para o projeto.
+-   `scripts/`: Armazena scripts utilitários, como o `create_agent.py` para gerar o código base de novos agentes.
+-   `docs/`: Para documentação detalhada sobre a arquitetura e o design do projeto.
+-   `config/`: Destinado a arquivos de configuração (atualmente não utilizado).
 
-## Getting Started
+## Como Começar
 
-### Prerequisites
+### Pré-requisitos
 
 -   Python 3.9+
--   Docker and Docker Compose
--   `pip` for installing Python packages
+-   Docker e Docker Compose
+-   `pip` para instalar pacotes Python
 
-### Setup
+### Instalação
 
-1.  **Clone the repository:**
+1.  **Clone o repositório:**
     ```bash
-    git clone <repository_url>
-    cd <repository_directory>
+    git clone <url_do_repositorio>
+    cd <diretorio_do_repositorio>
     ```
 
-2.  **Install dependencies:**
-    All required Python packages are listed in `requirements.txt`.
+2.  **Instale as dependências:**
+    Todos os pacotes Python necessários estão listados em `requirements.txt`.
     ```bash
     pip install -r requirements.txt
     ```
 
-### Running the System (Docker)
+### Executando o Sistema (Docker)
 
-The recommended way to run S.A.K.A. is by using Docker Compose, which orchestrates the multi-container setup.
+A maneira recomendada de executar o S.A.K.A. é usando o Docker Compose, que orquestra a configuração de múltiplos contêineres.
 
 ```bash
 sudo docker compose up --build -d
 ```
 
-This command will:
--   Build the Docker images for the Orchestrator and the agents.
--   Start all services defined in `docker-compose.yml` in detached mode.
--   Set up a dedicated network for inter-service communication.
+Este comando irá:
+-   Construir as imagens Docker para o Orquestrador e os agentes.
+-   Iniciar todos os serviços definidos no `docker-compose.yml` em modo `detached`.
+-   Configurar uma rede dedicada para a comunicação entre os serviços.
 
-You can view the logs of all running services with:
+Você pode visualizar os logs de todos os serviços em execução com:
 ```bash
 sudo docker compose logs -f
 ```
 
-To stop the system:
+Para parar o sistema:
 ```bash
 sudo docker compose down
 ```
 
-### Running for Local Development
+### Executando para Desenvolvimento Local
 
-For development and testing, you can run the services locally without Docker.
+Para desenvolvimento e testes, você pode executar os serviços localmente sem o Docker.
 
-1.  **Start the Orchestrator:**
-    Open a terminal and run:
+1.  **Inicie o Orquestrador:**
+    Abra um terminal e execute:
     ```bash
     uvicorn src.orchestrator.main:app --host 0.0.0.0 --port 8000
     ```
 
-2.  **Start an Agent (e.g., Kamila):**
-    Open a second terminal. You need to set environment variables so the agent can be reached by the Orchestrator on `localhost`.
+2.  **Inicie um Agente (ex: Kamila):**
+    Abra um segundo terminal. Você precisa definir variáveis de ambiente para que o agente possa ser alcançado pelo Orquestrador em `localhost`.
     ```bash
     export AGENT_HOST="localhost"
-    export AGENT_PORT="8001" # Use a different port for each agent
+    export AGENT_PORT="8001" # Use uma porta diferente para cada agente
     export PYTHONPATH=.
     python -m src.agents.kamila.main
     ```
 
-## Creating a New Agent
+## Criando um Novo Agente
 
-A helper script is provided to quickly generate the boilerplate code for a new agent.
+Um script auxiliar é fornecido para gerar rapidamente o código base para um novo agente.
 
 ```bash
-python scripts/create_agent.py <AgentName> "<Agent Description>"
+python scripts/create_agent.py <NomeDoAgente> "<Descrição do Agente>"
 ```
 
-**Example:**
+**Exemplo:**
 ```bash
-python scripts/create_agent.py Apollo "An agent for analyzing solar flare data."
+python scripts/create_agent.py Apollo "Um agente para analisar dados de erupções solares."
 ```
 
-This will create:
+Isso criará:
 -   `src/agents/apollo/`
 -   `src/agents/apollo/__init__.py`
--   `src/agents/apollo/apollo.py` (the agent's class file)
--   `src/agents/apollo/main.py` (the agent's entrypoint)
+-   `src/agents/apollo/apollo.py` (o arquivo da classe do agente)
+-   `src/agents/apollo/main.py` (o ponto de entrada do agente)
 
-After creating the agent, you can add it as a new service in the `docker-compose.yml` file to integrate it into the system.
+Após criar o agente, você pode adicioná-lo como um novo serviço no arquivo `docker-compose.yml` para integrá-lo ao sistema.
