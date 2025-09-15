@@ -42,6 +42,21 @@ services:
     networks:
       - saka_network
 
+  orion:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
+      args:
+        AGENT_NAME: orion
+    depends_on:
+      - orchestrator
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ALPHA_VANTAGE_KEY=${ALPHA_VANTAGE_KEY}
+    networks:
+      - saka_network
+
 networks:
   saka_network:
     driver: bridge

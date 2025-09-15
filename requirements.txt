@@ -4,3 +4,5 @@ requests
 twilio
 pytest
 google-generativeai
+alpha-vantage
+pandas
