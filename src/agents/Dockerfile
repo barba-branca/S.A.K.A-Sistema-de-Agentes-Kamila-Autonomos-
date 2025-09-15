@@ -1,21 +1,25 @@
-# Use an official Python runtime as a parent image
+# Usa uma imagem oficial do Python como imagem base
 FROM python:3.9-slim
 
-# Set the working directory in the container
+# Define o diretório de trabalho no contêiner
 WORKDIR /app
 
-# Argument for the agent name
+# Argumento para o nome do agente, que será passado durante o build
 ARG AGENT_NAME
 
-# Copy the requirements file and install dependencies
+# Define uma variável de ambiente a partir do argumento de build.
+# Isso torna o nome do agente disponível em tempo de execução.
+ENV AGENT_NAME=${AGENT_NAME}
+
+# Copia o arquivo de dependências e instala
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application's source code
+# Copia o resto do código-fonte da aplicação
 COPY ./src /app/src
 
-# Set the python path
+# Define o python path
 ENV PYTHONPATH=/app
 
-# Run the specified agent
-CMD ["python", "-m", "src.agents.${AGENT_NAME}.main"]
+# Executa o agente especificado usando um shell para substituir a variável de ambiente
+CMD ["/bin/sh", "-c", "python -u -m src.agents.${AGENT_NAME}.main"]

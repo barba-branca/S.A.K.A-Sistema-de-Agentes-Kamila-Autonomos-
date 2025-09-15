@@ -20,6 +20,25 @@ services:
       - orchestrator
     environment:
       - ORCHESTRATOR_URL=http://orchestrator:8000
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - RECIPIENT_PHONE_NUMBER=${RECIPIENT_PHONE_NUMBER}
+    networks:
+      - saka_network
+
+  athena:
+    build:
+      context: .
+      dockerfile: src/agents/Dockerfile
+      args:
+        AGENT_NAME: athena
+    depends_on:
+      - orchestrator
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NEWSAPI_KEY=${NEWSAPI_KEY}
     networks:
       - saka_network
 

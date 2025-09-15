@@ -1,21 +1,21 @@
-# Use an official Python runtime as a parent image
+# Usa uma imagem oficial do Python como imagem base
 FROM python:3.9-slim
 
-# Set the working directory in the container
+# Define o diretório de trabalho no contêiner
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
+# Copia o arquivo de dependências e instala
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application's source code from the host to the container.
+# Copia o resto do código-fonte da aplicação do host para o contêiner.
 COPY ./src /app/src
 
-# Make port 8000 available to the world outside this container
+# Torna a porta 8000 disponível para fora deste contêiner
 EXPOSE 8000
 
-# Define environment variable
+# Define a variável de ambiente
 ENV PYTHONPATH=/app
 
-# Run the application
+# Executa a aplicação
 CMD ["uvicorn", "src.orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000"]

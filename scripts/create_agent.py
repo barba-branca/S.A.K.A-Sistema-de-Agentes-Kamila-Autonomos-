@@ -3,19 +3,18 @@ import argparse
 
 def create_agent(name: str, description: str):
     name_lower = name.lower()
-    # name_capitalized is removed, we will use 'name' directly for the class name
 
-    # Create directory
+    # Cria o diretório do agente
     agent_dir = os.path.join("src", "agents", name_lower)
     os.makedirs(agent_dir, exist_ok=True)
 
-    # Create __init__.py
+    # Cria o arquivo __init__.py
     init_path = os.path.join(agent_dir, "__init__.py")
     if not os.path.exists(init_path):
         with open(init_path, "w") as f:
             pass
 
-    # Create agent class file
+    # Cria o arquivo da classe do agente
     agent_class_content = f"""import time
 from src.core.agent import BaseAgent, Message
 
@@ -29,11 +28,11 @@ class {name}Agent(BaseAgent):
         )
 
     async def handle_message(self, message: Message):
-        print(f"{name} received a message from {{message.sender_id}}: {{message.content}}")
-        # Add agent-specific logic here
-        return {{"status": "message processed by {name_lower}"}}
+        self.logger.info(f"Recebeu mensagem de {{message.sender_id}}: {{message.content}}")
+        # Adicione a lógica específica do agente aqui
+        return {{"status": "mensagem processada por {name_lower}"}}
 """
-    # Special handling for Kamila's file (which is now slightly different)
+    # Tratamento especial para o arquivo da Kamila (que é um pouco diferente)
     if name_lower == 'kamila':
         agent_class_content = """import time
 from src.core.agent import BaseAgent, Message
@@ -44,37 +43,37 @@ class KamilaAgent(BaseAgent):
         super().__init__(
             agent_id="kamila",
             name="Kamila",
-            description="The CEO of S.A.K.A. She coordinates all agents and makes final decisions.",
+            description="A CEO da S.A.K.A. Ela coordena todos os agentes e toma as decisões finais.",
             orchestrator_url=orchestrator_url
         )
 
     def send_daily_report(self):
-        self.logger.info("Generating the daily report...")
+        self.logger.info("Gerando o relatório diário...")
         report_body = (
-            "📈 *S.A.K.A. Daily Report*\\n\\n"
-            "Good morning! Here is a summary of today's activities:\\n\\n"
-            "- *Market Sentiment (Athena)*: Cautiously Optimistic\\n"
-            "- *Macro Outlook (Orion)*: Stable, with potential interest rate hikes.\\n"
-            "- *Trades Executed (Aethertrader)*: 3\\n"
-            "- *Portfolio P&L*: +0.5%\\n"
-            "- *Current Risk Level (Sentinel)*: Low\\n\\n"
-            "Have a productive day!"
+            "📈 *Relatório Diário S.A.K.A.*\\n\\n"
+            "Bom dia! Segue o resumo das atividades de hoje:\\n\\n"
+            "- *Sentimento de Mercado (Athena)*: Cautelosamente Otimista\\n"
+            "- *Cenário Macro (Orion)*: Estável, com potencial de alta nos juros.\\n"
+            "- *Trades Executados (Aethertrader)*: 3\\n"
+            "- *P&L do Portfólio*: +0.5%\\n"
+            "- *Nível de Risco Atual (Sentinel)*: Baixo\\n\\n"
+            "Tenha um dia produtivo!"
         )
         send_whatsapp_message(body=report_body)
 
     async def handle_message(self, message: Message):
-        self.logger.info(f"Received a message from {message.sender_id}: {message.content}")
+        self.logger.info(f"Recebeu uma mensagem de {message.sender_id}: {message.content}")
         content = message.content
         if content.get("command") == "generate_report":
             self.send_daily_report()
-            return {"status": "Report generation initiated."}
-        return {"status": f"Command '{content.get('command')}' not recognized."}
+            return {"status": "Geração de relatório iniciada."}
+        return {"status": f"Comando '{content.get('command')}' não reconhecido."}
 """
 
     with open(os.path.join(agent_dir, f"{name_lower}.py"), "w") as f:
         f.write(agent_class_content)
 
-    # Create main.py
+    # Cria o arquivo main.py
     main_py_content = f"""import os
 from src.agents.{name_lower}.{name_lower} import {name}Agent
 
@@ -87,11 +86,11 @@ if __name__ == "__main__":
     with open(os.path.join(agent_dir, "main.py"), "w") as f:
         f.write(main_py_content)
 
-    print(f"Agent {name} created/updated successfully in {agent_dir}")
+    print(f"Agente {name} criado/atualizado com sucesso em {agent_dir}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create or update a S.A.K.A. agent.")
-    parser.add_argument("name", type=str, help="The name of the agent (e.g., Athena). Should be capitalized.")
-    parser.add_argument("description", type=str, help="A short description of the agent.")
+    parser = argparse.ArgumentParser(description="Cria ou atualiza um agente S.A.K.A.")
+    parser.add_argument("name", type=str, help="O nome do agente (ex: Athena). Deve ser capitalizado.")
+    parser.add_argument("description", type=str, help="Uma breve descrição do agente.")
     args = parser.parse_args()
     create_agent(args.name, args.description)

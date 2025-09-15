@@ -4,7 +4,7 @@ from src.orchestrator.models import Agent
 
 @pytest.fixture
 def registry():
-    """Provides a clean AgentRegistry instance for each test."""
+    """Fornece uma instância limpa do AgentRegistry para cada teste."""
     return AgentRegistry()
 
 def test_register_agent(registry: AgentRegistry):
@@ -18,7 +18,7 @@ def test_register_duplicate_agent_raises_error(registry: AgentRegistry):
     agent1 = Agent(id="test01", name="Test Agent 1", endpoint="http://localhost:8001")
     agent2 = Agent(id="test01", name="Test Agent 2", endpoint="http://localhost:8002")
     registry.register_agent(agent1)
-    with pytest.raises(ValueError, match="already registered"):
+    with pytest.raises(ValueError, match="já registrado"):
         registry.register_agent(agent2)
 
 def test_unregister_agent(registry: AgentRegistry):
@@ -30,7 +30,7 @@ def test_unregister_agent(registry: AgentRegistry):
     assert len(registry.list_agents()) == 0
 
 def test_unregister_nonexistent_agent_raises_error(registry: AgentRegistry):
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(ValueError, match="não encontrado"):
         registry.unregister_agent("nonexistent")
 
 def test_get_agent(registry: AgentRegistry):
@@ -40,7 +40,7 @@ def test_get_agent(registry: AgentRegistry):
     assert retrieved_agent == agent
 
 def test_get_nonexistent_agent_raises_error(registry: AgentRegistry):
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(ValueError, match="não encontrado"):
         registry.get_agent("nonexistent")
 
 def test_list_agents(registry: AgentRegistry):
@@ -53,5 +53,5 @@ def test_list_agents(registry: AgentRegistry):
     assert registry.list_agents() == [agent1]
 
     registry.register_agent(agent2)
-    # The order is not guaranteed, so we compare sets
+    # A ordem não é garantida, então comparamos como conjuntos (sets)
     assert set(registry.list_agents()) == {agent1, agent2}

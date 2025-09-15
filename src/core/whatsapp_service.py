@@ -6,8 +6,8 @@ logger = logging.getLogger(__name__)
 
 def send_whatsapp_message(body: str, to: str = None):
     """
-    Sends a WhatsApp message using Twilio.
-    Falls back to logging the message if credentials are not configured.
+    Envia uma mensagem de WhatsApp usando o Twilio.
+    Caso as credenciais não estejam configuradas, exibe a mensagem no log.
     """
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
@@ -15,11 +15,11 @@ def send_whatsapp_message(body: str, to: str = None):
     recipient_phone_number = to or os.getenv("RECIPIENT_PHONE_NUMBER")
 
     if not all([account_sid, auth_token, twilio_phone_number, recipient_phone_number]):
-        logger.info("---- WHATSAPP SIMULATION ----")
-        logger.info(f"To: {recipient_phone_number or 'Not configured'}")
-        logger.info(f"Body: {body}")
+        logger.info("---- SIMULAÇÃO DE WHATSAPP ----")
+        logger.info(f"Para: {recipient_phone_number or 'Não configurado'}")
+        logger.info(f"Corpo: {body}")
         logger.info("-----------------------------")
-        logger.warning("Twilio environment variables not fully configured. Logging to console instead.")
+        logger.warning("Variáveis de ambiente do Twilio não configuradas. Exibindo no console.")
         return
 
     try:
@@ -29,6 +29,6 @@ def send_whatsapp_message(body: str, to: str = None):
             from_=f'whatsapp:{twilio_phone_number}',
             to=f'whatsapp:{recipient_phone_number}'
         )
-        logger.info(f"WhatsApp message sent successfully to {recipient_phone_number}. SID: {message.sid}")
+        logger.info(f"Mensagem de WhatsApp enviada com sucesso para {recipient_phone_number}. SID: {message.sid}")
     except Exception as e:
-        logger.error(f"Error sending WhatsApp message: {e}")
+        logger.error(f"Erro ao enviar mensagem de WhatsApp: {e}")
