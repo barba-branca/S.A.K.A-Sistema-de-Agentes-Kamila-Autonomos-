@@ -55,8 +55,23 @@ services:
     networks:
       - saka-network
 
-  # O Orchestrator e outros agentes podem ser adicionados aqui seguindo o mesmo padrão.
-  # Stubs não são mais necessários da mesma forma, pois cada agente é um serviço completo.
+  orchestrator:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/orchestrator/requirements.txt
+        AGENT_WORKDIR: /app/saka/orchestrator
+    ports:
+      - "8000:8000"
+    networks:
+      - saka-network
+    environment:
+      - KAMILA_URL=http://kamila-ceo:8000
+      - ATHENA_URL=http://athena-sentiment:8000
+      - SENTINEL_URL=http://sentinel-risk:8000
+
+  # Stubs
   polaris-advisor:
     image: alpine:latest
     command: ["sleep", "infinity"]
