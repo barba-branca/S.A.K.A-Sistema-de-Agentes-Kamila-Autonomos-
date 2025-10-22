@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-# Este import vai funcionar por causa do volume montado e do PYTHONPATH no Dockerfile
-from shared.models import SentinelRiskOutput
+# Este import funcionará por causa da estrutura do projeto e do Dockerfile.base
+from saka.shared.models import SentinelRiskOutput
 
 app = FastAPI(
     title="S.A.K.A. Sentinel (Risk)",

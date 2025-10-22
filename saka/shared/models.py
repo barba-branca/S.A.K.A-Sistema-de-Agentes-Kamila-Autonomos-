@@ -40,6 +40,12 @@ class SentinelRiskOutput(BaseModel):
     can_trade: bool = True
     reason: Optional[str] = None
 
+class CronosTechnicalOutput(BaseModel):
+    """Output de Cronos: Análise técnica."""
+    asset: str
+    rsi: float = Field(..., description="Índice de Força Relativa (RSI) de 14 dias")
+    summary: str
+
 # --- Modelos para Decisão e Execução ---
 
 class TradeDecisionProposal(BaseModel):
@@ -74,3 +80,4 @@ class ConsolidatedDataInput(BaseModel):
     asset: str
     athena_analysis: AthenaSentimentOutput
     sentinel_analysis: SentinelRiskOutput
+    cronos_analysis: CronosTechnicalOutput
