@@ -5,9 +5,7 @@ from datetime import datetime, timezone
 import logging
 import sys
 
-# Adiciona o caminho para encontrar o módulo 'shared'
-sys.path.append('../')
-from shared.models import KamilaFinalDecision, TradeExecutionReceipt
+from saka.shared.models import KamilaFinalDecision, TradeExecutionReceipt
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

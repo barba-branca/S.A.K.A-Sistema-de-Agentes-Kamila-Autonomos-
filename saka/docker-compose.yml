@@ -5,59 +5,60 @@ networks:
     driver: bridge
 
 services:
-  orchestrator:
-    build:
-      context: ./orchestrator
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./orchestrator:/app
-      - ./shared:/app/shared
-    ports:
-      - "8000:8000" # Mapeando para 8000 para evitar conflitos com a porta 80 do sistema host
-    networks:
-      - saka-network
-    depends_on:
-      - kamila-ceo
-      - athena-sentiment
-
   kamila-ceo:
     build:
-      context: ./agents/kamila_ceo
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./agents/kamila_ceo:/app
-      - ../shared:/app/shared
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/kamila_ceo/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/kamila_ceo
+    ports:
+      - "8001:8000"
     networks:
       - saka-network
     environment:
-      - ORCHESTRATOR_URL=http://orchestrator:8000
-      - POLARIS_URL=http://polaris-advisor:8000
       - AETHERTRADER_URL=http://aethertrader-manager:8000
 
   athena-sentiment:
     build:
-      context: ./agents/athena_sentiment
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./agents/athena_sentiment:/app
-      - ../shared:/app/shared
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/athena_sentiment/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/athena_sentiment
+    ports:
+      - "8002:8000"
     networks:
       - saka-network
 
-  # --- Stubs para agentes a serem desenvolvidos ---
-
-  polaris-advisor:
-    image: alpine:latest
-    command: ["sleep", "infinity"]
+  sentinel-risk:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/sentinel_risk/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/sentinel_risk
+    ports:
+      - "8003:8000"
     networks:
       - saka-network
 
   aethertrader-manager:
     build:
-      context: ./agents/aethertrader_manager
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ./agents/aethertrader_manager:/app
-      - ../shared:/app/shared
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/aethertrader_manager/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/aethertrader_manager
+    ports:
+      - "8004:8000"
+    networks:
+      - saka-network
+
+  # O Orchestrator e outros agentes podem ser adicionados aqui seguindo o mesmo padrão.
+  # Stubs não são mais necessários da mesma forma, pois cada agente é um serviço completo.
+  polaris-advisor:
+    image: alpine:latest
+    command: ["sleep", "infinity"]
     networks:
       - saka-network
