@@ -1,0 +1,63 @@
+version: '3.8'
+
+networks:
+  saka-network:
+    driver: bridge
+
+services:
+  orchestrator:
+    build:
+      context: ./orchestrator
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./orchestrator:/app
+      - ./shared:/app/shared
+    ports:
+      - "8000:8000" # Mapeando para 8000 para evitar conflitos com a porta 80 do sistema host
+    networks:
+      - saka-network
+    depends_on:
+      - kamila-ceo
+      - athena-sentiment
+
+  kamila-ceo:
+    build:
+      context: ./agents/kamila_ceo
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./agents/kamila_ceo:/app
+      - ../shared:/app/shared
+    networks:
+      - saka-network
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:8000
+      - POLARIS_URL=http://polaris-advisor:8000
+      - AETHERTRADER_URL=http://aethertrader-manager:8000
+
+  athena-sentiment:
+    build:
+      context: ./agents/athena_sentiment
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./agents/athena_sentiment:/app
+      - ../shared:/app/shared
+    networks:
+      - saka-network
+
+  # --- Stubs para agentes a serem desenvolvidos ---
+
+  polaris-advisor:
+    image: alpine:latest
+    command: ["sleep", "infinity"]
+    networks:
+      - saka-network
+
+  aethertrader-manager:
+    build:
+      context: ./agents/aethertrader_manager
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./agents/aethertrader_manager:/app
+      - ../shared:/app/shared
+    networks:
+      - saka-network
