@@ -35,6 +35,7 @@ services:
       - saka-network
     environment:
       - AETHERTRADER_URL=http://aethertrader-manager:8000
+      - POLARIS_URL=http://polaris-advisor:8000
 
   athena-sentiment:
     build:
@@ -86,7 +87,13 @@ services:
 
   # Stubs
   polaris-advisor:
-    image: alpine:latest
-    command: ["sleep", "infinity"]
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/polaris_advisor/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/polaris_advisor
+    ports:
+      - "8006:8000"
     networks:
       - saka-network

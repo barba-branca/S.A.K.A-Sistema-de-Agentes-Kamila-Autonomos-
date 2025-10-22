@@ -4,12 +4,19 @@ import httpx
 import sys
 from pydantic import BaseModel
 
-from saka.shared.models import ConsolidatedDataInput, KamilaFinalDecision, AgentName
+from saka.shared.models import (
+    ConsolidatedDataInput,
+    KamilaFinalDecision,
+    AgentName,
+    TradeDecisionProposal,
+    PolarisRecommendation
+)
 
 app = FastAPI(title="Kamila (CEO)")
 
 # URLs dos outros agentes
 AETHERTRADER_URL = os.getenv("AETHERTRADER_URL", "http://aethertrader-manager:8000")
+POLARIS_URL = os.getenv("POLARIS_URL", "http://polaris-advisor:8000")
 
 class DecisionResponse(BaseModel):
     status: str
@@ -58,28 +65,51 @@ async def make_decision(data: ConsolidatedDataInput):
         print(f"Decisão: MANTER (HOLD). Motivo: {reason}")
         return {"status": "action_hold", "details": {"reason": reason, "asset": data.asset}}
 
-    # Se uma decisão de trade foi tomada, preparar e enviar a ordem
-    final_decision = KamilaFinalDecision(
-        action="execute_trade",
-        agent_target=AgentName.AETHERTRADER,
+    # Se uma decisão de trade foi tomada, criar uma proposta para Polaris
+    trade_proposal = TradeDecisionProposal(
         asset=data.asset,
         trade_type="market",
         side=trade_decision,
-        amount_usd=100.0
+        amount_usd=100.0,
+        reasoning=reason
     )
 
-    print(f"Decisão: EXECUTAR TRADE ({trade_decision.upper()}). Motivo: {reason}")
+    print(f"Proposta de trade gerada. Enviando para revisão de Polaris: {trade_proposal.dict()}")
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{AETHERTRADER_URL}/execute_trade", json=final_decision.dict(), timeout=10.0)
-            response.raise_for_status()
-            receipt = response.json()
+            # Consultar Polaris
+            polaris_response = await client.post(f"{POLARIS_URL}/review", json=trade_proposal.dict(), timeout=10.0)
+            polaris_response.raise_for_status()
+            polaris_rec = PolarisRecommendation(**polaris_response.json())
+
+            if not polaris_rec.decision_approved:
+                print(f"Decisão VETADA por Polaris. Motivo: {polaris_rec.remarks}")
+                return {"status": "trade_vetoed", "details": polaris_rec.dict()}
+
+            print(f"Proposta APROVADA por Polaris. Motivo: {polaris_rec.remarks}. Executando trade...")
+
+            # Se aprovado, preparar a ordem final para Aethertrader
+            final_decision = KamilaFinalDecision(
+                action="execute_trade",
+                agent_target=AgentName.AETHERTRADER,
+                asset=data.asset,
+                trade_type=trade_proposal.trade_type,
+                side=trade_proposal.side,
+                amount_usd=trade_proposal.amount_usd
+            )
+
+            # Enviar para Aethertrader
+            aethertrader_response = await client.post(f"{AETHERTRADER_URL}/execute_trade", json=final_decision.dict(), timeout=10.0)
+            aethertrader_response.raise_for_status()
+            receipt = aethertrader_response.json()
+
             print(f"Trade executado com sucesso. Recibo: {receipt}")
             return {"status": "trade_executed", "details": receipt}
+
     except httpx.RequestError as e:
-        print(f"Erro ao se comunicar com Aethertrader: {e}")
-        raise HTTPException(status_code=503, detail=f"Aethertrader indisponível: {e}")
+        print(f"Erro de comunicação com um agente dependente: {e}")
+        raise HTTPException(status_code=503, detail=f"Agente dependente (Polaris ou Aethertrader) indisponível: {e}")
 
 @app.get("/health")
 def health():
