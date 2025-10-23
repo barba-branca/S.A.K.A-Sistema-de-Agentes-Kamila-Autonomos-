@@ -64,6 +64,15 @@ class PolarisRecommendation(BaseModel):
     confidence: float
     remarks: Optional[str] = None
 
+class GaiaPortfolioImpactAnalysis(BaseModel):
+    asset: str
+    side: Literal["buy", "sell"]
+    proposed_amount_usd: float
+
+class GaiaPortfolioAdjustment(BaseModel):
+    adjusted_amount_usd: float
+    reasoning: str
+
 class KamilaFinalDecision(BaseModel):
     action: Literal["execute_trade"]
     agent_target: Literal[AgentName.AETHERTRADER, AgentName.HERMES]

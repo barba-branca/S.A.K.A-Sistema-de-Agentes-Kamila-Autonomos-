@@ -37,6 +37,7 @@ services:
     environment:
       - AETHERTRADER_URL=http://aethertrader-manager:8000
       - POLARIS_URL=http://polaris-advisor:8000
+      - GAIA_URL=http://gaia-diversification:8000
 
   athena-sentiment:
     build:
@@ -107,5 +108,17 @@ services:
         AGENT_WORKDIR: /app/saka/agents/orion_cfo
     ports:
       - "8007:8000"
+    networks:
+      - saka-network
+
+  gaia-diversification:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/gaia_diversification/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/gaia_diversification
+    ports:
+      - "8008:8000"
     networks:
       - saka-network
