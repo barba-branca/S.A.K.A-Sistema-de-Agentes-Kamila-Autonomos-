@@ -5,7 +5,6 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # Copia todo o código do projeto para o diretório de trabalho
-# O .dockerignore deve ser usado para excluir arquivos desnecessários (ex: .git)
 COPY . /app
 
 # Define o PYTHONPATH para incluir a raiz do projeto, permitindo imports absolutos

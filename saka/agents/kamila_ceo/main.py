@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 import os
 import httpx
-import sys
 from pydantic import BaseModel
 
 from saka.shared.models import (
@@ -24,19 +23,24 @@ class DecisionResponse(BaseModel):
 
 @app.post("/decide", response_model=DecisionResponse)
 async def make_decision(data: ConsolidatedDataInput):
-    """
-    Endpoint de placeholder para a lógica de decisão de Kamila.
-    A lógica de chamada ao Aethertrader será adicionada aqui mais tarde.
-    """
     # --- Lógica de Decisão Multifatorial ---
     athena_signal = data.athena_analysis.signal
     athena_confidence = data.athena_analysis.confidence
     cronos_rsi = data.cronos_analysis.rsi
+    orion_impact = data.orion_analysis.impact
 
     print(
-        f"Kamila processando dados para {data.asset}: "
-        f"Sinal Athena='{athena_signal}', Confiança={athena_confidence:.2f}, RSI Cronos={cronos_rsi:.2f}"
+        f"Kamila processando dados para {data.asset}: \n"
+        f"  - Athena: Sinal='{athena_signal}', Confiança={athena_confidence:.2f}\n"
+        f"  - Cronos: RSI={cronos_rsi:.2f}\n"
+        f"  - Orion: Impacto Macro='{orion_impact}'"
     )
+
+    # Vetar trades em caso de alto impacto macroeconômico
+    if orion_impact == 'high':
+        reason = f"Decisão de MANTER (HOLD) devido a evento macroeconômico de alto impacto: {data.orion_analysis.summary}"
+        print(reason)
+        return {"status": "action_hold", "details": {"reason": reason, "asset": data.asset}}
 
     CONFIDENCE_THRESHOLD = 0.75
     RSI_OVERSOLD = 30.0
@@ -52,7 +56,6 @@ async def make_decision(data: ConsolidatedDataInput):
         reason = f"Sinal de VENDA forte (confiança {athena_confidence:.2f}) e ativo SOBRECOMPRADO (RSI {cronos_rsi:.2f})."
         trade_decision = 'sell'
     else:
-        # Lógica para HOLD
         if athena_signal == 'hold':
             reason = "Sinal de Athena é 'hold'."
         elif athena_confidence < CONFIDENCE_THRESHOLD:
@@ -65,7 +68,6 @@ async def make_decision(data: ConsolidatedDataInput):
         print(f"Decisão: MANTER (HOLD). Motivo: {reason}")
         return {"status": "action_hold", "details": {"reason": reason, "asset": data.asset}}
 
-    # Se uma decisão de trade foi tomada, criar uma proposta para Polaris
     trade_proposal = TradeDecisionProposal(
         asset=data.asset,
         trade_type="market",
@@ -78,7 +80,6 @@ async def make_decision(data: ConsolidatedDataInput):
 
     try:
         async with httpx.AsyncClient() as client:
-            # Consultar Polaris
             polaris_response = await client.post(f"{POLARIS_URL}/review", json=trade_proposal.dict(), timeout=10.0)
             polaris_response.raise_for_status()
             polaris_rec = PolarisRecommendation(**polaris_response.json())
@@ -89,7 +90,6 @@ async def make_decision(data: ConsolidatedDataInput):
 
             print(f"Proposta APROVADA por Polaris. Motivo: {polaris_rec.remarks}. Executando trade...")
 
-            # Se aprovado, preparar a ordem final para Aethertrader
             final_decision = KamilaFinalDecision(
                 action="execute_trade",
                 agent_target=AgentName.AETHERTRADER,
@@ -99,7 +99,6 @@ async def make_decision(data: ConsolidatedDataInput):
                 amount_usd=trade_proposal.amount_usd
             )
 
-            # Enviar para Aethertrader
             aethertrader_response = await client.post(f"{AETHERTRADER_URL}/execute_trade", json=final_decision.dict(), timeout=10.0)
             aethertrader_response.raise_for_status()
             receipt = aethertrader_response.json()

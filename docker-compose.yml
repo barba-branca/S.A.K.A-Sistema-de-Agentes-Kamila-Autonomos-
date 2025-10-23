@@ -21,6 +21,7 @@ services:
       - ATHENA_URL=http://athena-sentiment:8000
       - SENTINEL_URL=http://sentinel-risk:8000
       - CRONOS_URL=http://cronos-cycles:8000
+      - ORION_URL=http://orion-cfo:8000
 
   kamila-ceo:
     build:
@@ -85,7 +86,6 @@ services:
     networks:
       - saka-network
 
-  # Stubs
   polaris-advisor:
     build:
       context: .
@@ -95,5 +95,17 @@ services:
         AGENT_WORKDIR: /app/saka/agents/polaris_advisor
     ports:
       - "8006:8000"
+    networks:
+      - saka-network
+
+  orion-cfo:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/orion_cfo/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/orion_cfo
+    ports:
+      - "8007:8000"
     networks:
       - saka-network

@@ -41,9 +41,13 @@ class SentinelRiskOutput(BaseModel):
     reason: Optional[str] = None
 
 class CronosTechnicalOutput(BaseModel):
-    """Output de Cronos: Análise técnica."""
     asset: str
     rsi: float = Field(..., description="Índice de Força Relativa (RSI) de 14 dias")
+    summary: str
+
+class OrionMacroOutput(BaseModel):
+    economic_indicator: str
+    impact: Literal["high", "medium", "low"]
     summary: str
 
 # --- Modelos para Decisão e Execução ---
@@ -81,3 +85,4 @@ class ConsolidatedDataInput(BaseModel):
     athena_analysis: AthenaSentimentOutput
     sentinel_analysis: SentinelRiskOutput
     cronos_analysis: CronosTechnicalOutput
+    orion_analysis: OrionMacroOutput
