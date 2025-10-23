@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 import os
 import httpx
 from pydantic import BaseModel
@@ -8,6 +8,8 @@ from saka.shared.models import (
     TradeDecisionProposal, PolarisRecommendation, GaiaPortfolioImpactAnalysis,
     GaiaPortfolioAdjustment
 )
+
+from .reporting import send_whatsapp_report
 
 app = FastAPI(title="Kamila (CEO)")
 
@@ -20,7 +22,7 @@ class DecisionResponse(BaseModel):
     details: dict
 
 @app.post("/decide", response_model=DecisionResponse)
-async def make_decision(data: ConsolidatedDataInput):
+async def make_decision(data: ConsolidatedDataInput, background_tasks: BackgroundTasks):
     if data.orion_analysis.impact == 'high':
         return {"status": "action_hold", "details": {"reason": "High macro impact event."}}
 
@@ -59,7 +61,22 @@ async def make_decision(data: ConsolidatedDataInput):
 
             aethertrader_response = await client.post(f"{AETHERTRADER_URL}/execute_trade", json=final_decision.dict(), timeout=10.0)
             aethertrader_response.raise_for_status()
-            return {"status": "trade_executed", "details": aethertrader_response.json()}
+            receipt = aethertrader_response.json()
+
+            print(f"Trade executado com sucesso. Recibo: {receipt}")
+
+            # Enviar relatório em background
+            report_body = (
+                f"🚨 S.A.K.A. Trade Executado 🚨\n\n"
+                f"Ativo: {final_decision.asset}\n"
+                f"Lado: {final_decision.side.upper()}\n"
+                f"Valor: ${final_decision.amount_usd:,.2f}\n"
+                f"Preço Executado: ${receipt.get('executed_price'):,.2f}\n"
+                f"ID do Trade: {receipt.get('trade_id')}"
+            )
+            background_tasks.add_task(send_whatsapp_report, report_body)
+
+            return {"status": "trade_executed", "details": receipt}
         except httpx.RequestError as e:
             raise HTTPException(status_code=503, detail=f"Agent communication error: {e}")
 
