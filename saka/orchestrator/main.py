@@ -3,14 +3,9 @@ import httpx
 import asyncio
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List
 
-from saka.shared.models import (
-    ConsolidatedDataInput,
-    AthenaSentimentOutput,
-    SentinelRiskOutput,
-    CronosTechnicalOutput,
-    OrionMacroOutput
-)
+from saka.shared.models import *
 
 app = FastAPI(title="S.A.K.A. Orchestrator")
 
@@ -22,6 +17,7 @@ ORION_URL = os.getenv("ORION_URL")
 
 class CycleTriggerRequest(BaseModel):
     asset: str = "BTC/USD"
+    historical_prices: List[float]
 
 @app.post("/trigger_decision_cycle")
 async def trigger_decision_cycle(request: CycleTriggerRequest):
@@ -31,7 +27,7 @@ async def trigger_decision_cycle(request: CycleTriggerRequest):
             tasks = [
                 client.post(f"{ATHENA_URL}/analyze_sentiment", json={"asset": asset}),
                 client.post(f"{SENTINEL_URL}/analyze_risk", json={"asset": asset}),
-                client.post(f"{CRONOS_URL}/analyze_cycles", json={"asset": asset}),
+                client.post(f"{CRONOS_URL}/analyze_cycles", json={"asset": asset, "close_prices": request.historical_prices}),
                 client.post(f"{ORION_URL}/analyze_macro", json={"market": "CRYPTO"})
             ]
             responses = await asyncio.gather(*tasks)

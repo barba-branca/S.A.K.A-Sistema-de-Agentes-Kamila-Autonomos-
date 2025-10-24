@@ -87,6 +87,21 @@ class TradeExecutionReceipt(BaseModel):
     executed_price: float
     timestamp: str
 
+# --- Modelos para Requisições de Análise (usados pelo backtester) ---
+
+class AthenaRequest(BaseModel):
+    asset: str
+
+class SentinelRequest(BaseModel):
+    asset: str
+
+class CronosRequest(BaseModel):
+    asset: str
+    close_prices: List[float]
+
+class OrionRequest(BaseModel):
+    market: str
+
 # --- Modelo para Agregação de Dados para Kamila ---
 
 class ConsolidatedDataInput(BaseModel):

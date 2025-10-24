@@ -1,15 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 import os
 import httpx
-from pydantic import BaseModel
-
-from saka.shared.models import (
-    ConsolidatedDataInput, KamilaFinalDecision, AgentName,
-    TradeDecisionProposal, PolarisRecommendation, GaiaPortfolioImpactAnalysis,
-    GaiaPortfolioAdjustment
-)
-
-from .reporting import send_whatsapp_report
+from saka.shared.models import *
 
 app = FastAPI(title="Kamila (CEO)")
 
@@ -63,18 +55,7 @@ async def make_decision(data: ConsolidatedDataInput, background_tasks: Backgroun
             aethertrader_response.raise_for_status()
             receipt = aethertrader_response.json()
 
-            print(f"Trade executado com sucesso. Recibo: {receipt}")
-
-            # Enviar relatório em background
-            report_body = (
-                f"🚨 S.A.K.A. Trade Executado 🚨\n\n"
-                f"Ativo: {final_decision.asset}\n"
-                f"Lado: {final_decision.side.upper()}\n"
-                f"Valor: ${final_decision.amount_usd:,.2f}\n"
-                f"Preço Executado: ${receipt.get('executed_price'):,.2f}\n"
-                f"ID do Trade: {receipt.get('trade_id')}"
-            )
-            background_tasks.add_task(send_whatsapp_report, report_body)
+            # A chamada para o reporting.py será adicionada na próxima etapa
 
             return {"status": "trade_executed", "details": receipt}
         except httpx.RequestError as e:

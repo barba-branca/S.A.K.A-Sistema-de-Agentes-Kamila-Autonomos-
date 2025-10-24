@@ -1,15 +1,11 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
 import random
-from saka.shared.models import AthenaSentimentOutput, TradeSignal
+from saka.shared.models import AthenaSentimentOutput, TradeSignal, AthenaRequest
 
 app = FastAPI(title="Athena (Sentiment)")
 
-class SentimentRequest(BaseModel):
-    asset: str
-
 @app.post("/analyze_sentiment", response_model=AthenaSentimentOutput)
-async def analyze_sentiment(request: SentimentRequest):
+async def analyze_sentiment(request: AthenaRequest):
     simulated_score = random.uniform(-1.0, 1.0)
     simulated_confidence = random.uniform(0.4, 0.99)
     if simulated_score > 0.3:

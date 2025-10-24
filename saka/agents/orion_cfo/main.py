@@ -1,15 +1,11 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
 import random
-from saka.shared.models import OrionMacroOutput
+from saka.shared.models import OrionMacroOutput, OrionRequest
 
 app = FastAPI(title="Orion (CFO)")
 
-class AnalysisRequest(BaseModel):
-    market: str
-
 @app.post("/analyze_macro", response_model=OrionMacroOutput)
-async def analyze_macro(request: AnalysisRequest):
+async def analyze_macro(request: OrionRequest):
     possible_events = [
         ("CPI_REPORT", "Relatório de Inflação (CPI) divulgado."),
         ("FED_MEETING", "Reunião do Comitê Federal de Mercado Aberto (FOMC)."),

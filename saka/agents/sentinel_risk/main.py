@@ -1,14 +1,10 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from saka.shared.models import SentinelRiskOutput
+from saka.shared.models import SentinelRiskOutput, SentinelRequest
 
 app = FastAPI(title="Sentinel (Risk)")
 
-class RiskInput(BaseModel):
-    asset: str
-
 @app.post("/analyze_risk", response_model=SentinelRiskOutput)
-async def analyze_risk(data: RiskInput):
+async def analyze_risk(data: SentinelRequest):
     return SentinelRiskOutput(
         asset=data.asset,
         risk_level=0.2,

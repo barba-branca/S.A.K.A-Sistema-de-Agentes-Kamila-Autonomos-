@@ -38,10 +38,10 @@ services:
       - AETHERTRADER_URL=http://aethertrader-manager:8000
       - POLARIS_URL=http://polaris-advisor:8000
       - GAIA_URL=http://gaia-diversification:8000
-      - TWILIO_ACCOUNT_SID=YOUR_TWILIO_ACCOUNT_SID
-      - TWILIO_AUTH_TOKEN=YOUR_TWILIO_AUTH_TOKEN
-      - TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
-      - USER_WHATSAPP_TO=whatsapp:+5511999999999
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_WHATSAPP_FROM=${TWILIO_WHATSAPP_FROM}
+      - USER_WHATSAPP_TO=${USER_WHATSAPP_TO}
 
   athena-sentiment:
     build:
