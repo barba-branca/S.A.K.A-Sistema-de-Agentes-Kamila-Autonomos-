@@ -1,26 +1,25 @@
 # Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
-# Set the working directory in the container
+# Define o diretório de trabalho principal
 WORKDIR /app
 
-# Copy the entire project structure into the container
-COPY . .
+# Copia todo o código do projeto para o diretório de trabalho
+COPY . /app
 
-# Argument to specify the requirements file path
+# Define o PYTHONPATH para incluir a raiz do projeto, permitindo imports absolutos
+ENV PYTHONPATH "${PYTHONPATH}:/app"
+
+# Argumento para o caminho do arquivo de dependências específico do agente
 ARG REQUIREMENTS_PATH
-
-# Install the specific requirements for the agent
+# Instala as dependências do agente
 RUN pip install --no-cache-dir -r ${REQUIREMENTS_PATH}
 
-# Argument to specify the agent's working directory
+# Argumento para o diretório de trabalho do agente
 ARG AGENT_WORKDIR
-
-# Set the final working directory
+# Define o diretório de trabalho final para o do agente
 WORKDIR ${AGENT_WORKDIR}
 
-# Make port 8000 available to the world outside this container
+# Expõe a porta e executa o Uvicorn
 EXPOSE 8000
-
-# Run main.py when the container launches
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -40,6 +40,16 @@ class SentinelRiskOutput(BaseModel):
     can_trade: bool = True
     reason: Optional[str] = None
 
+class CronosTechnicalOutput(BaseModel):
+    asset: str
+    rsi: float = Field(..., description="Índice de Força Relativa (RSI) de 14 dias")
+    summary: str
+
+class OrionMacroOutput(BaseModel):
+    economic_indicator: str
+    impact: Literal["high", "medium", "low"]
+    summary: str
+
 # --- Modelos para Decisão e Execução ---
 
 class TradeDecisionProposal(BaseModel):
@@ -53,6 +63,15 @@ class PolarisRecommendation(BaseModel):
     decision_approved: bool
     confidence: float
     remarks: Optional[str] = None
+
+class GaiaPortfolioImpactAnalysis(BaseModel):
+    asset: str
+    side: Literal["buy", "sell"]
+    proposed_amount_usd: float
+
+class GaiaPortfolioAdjustment(BaseModel):
+    adjusted_amount_usd: float
+    reasoning: str
 
 class KamilaFinalDecision(BaseModel):
     action: Literal["execute_trade"]
@@ -68,9 +87,26 @@ class TradeExecutionReceipt(BaseModel):
     executed_price: float
     timestamp: str
 
+# --- Modelos para Requisições de Análise (usados pelo backtester) ---
+
+class AthenaRequest(BaseModel):
+    asset: str
+
+class SentinelRequest(BaseModel):
+    asset: str
+
+class CronosRequest(BaseModel):
+    asset: str
+    close_prices: List[float]
+
+class OrionRequest(BaseModel):
+    market: str
+
 # --- Modelo para Agregação de Dados para Kamila ---
 
 class ConsolidatedDataInput(BaseModel):
     asset: str
     athena_analysis: AthenaSentimentOutput
     sentinel_analysis: SentinelRiskOutput
+    cronos_analysis: CronosTechnicalOutput
+    orion_analysis: OrionMacroOutput

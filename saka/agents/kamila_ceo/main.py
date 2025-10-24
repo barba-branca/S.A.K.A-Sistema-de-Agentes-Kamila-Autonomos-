@@ -1,86 +1,65 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 import os
 import httpx
-import sys
-from pydantic import BaseModel
-
-from saka.shared.models import ConsolidatedDataInput, KamilaFinalDecision, AgentName
+from saka.shared.models import *
 
 app = FastAPI(title="Kamila (CEO)")
 
-# URLs dos outros agentes
-AETHERTRADER_URL = os.getenv("AETHERTRADER_URL", "http://aethertrader-manager:8000")
+AETHERTRADER_URL = os.getenv("AETHERTRADER_URL")
+POLARIS_URL = os.getenv("POLARIS_URL")
+GAIA_URL = os.getenv("GAIA_URL")
 
 class DecisionResponse(BaseModel):
     status: str
     details: dict
 
 @app.post("/decide", response_model=DecisionResponse)
-async def make_decision(data: ConsolidatedDataInput):
-    """
-    Endpoint de placeholder para a lógica de decisão de Kamila.
-    A lógica de chamada ao Aethertrader será adicionada aqui mais tarde.
-    """
-    # --- Lógica de Decisão Baseada em Regras ---
-    athena_signal = data.athena_analysis.signal
-    athena_confidence = data.athena_analysis.confidence
+async def make_decision(data: ConsolidatedDataInput, background_tasks: BackgroundTasks):
+    if data.orion_analysis.impact == 'high':
+        return {"status": "action_hold", "details": {"reason": "High macro impact event."}}
 
-    print(f"Kamila processando dados para {data.asset}: Sinal='{athena_signal}', Confiança={athena_confidence:.2f}")
+    trade_decision = None
+    if data.athena_analysis.signal == 'buy' and data.athena_analysis.confidence >= 0.75 and data.cronos_analysis.rsi < 30:
+        trade_decision = 'buy'
+    elif data.athena_analysis.signal == 'sell' and data.athena_analysis.confidence >= 0.75 and data.cronos_analysis.rsi > 70:
+        trade_decision = 'sell'
 
-    # Definir o limiar de confiança para executar um trade
-    CONFIDENCE_THRESHOLD = 0.75
+    if not trade_decision:
+        return {"status": "action_hold", "details": {"reason": "Signal criteria not met."}}
 
-    if athena_signal != 'hold' and athena_confidence >= CONFIDENCE_THRESHOLD:
-        # Se o sinal não for 'hold' e a confiança for alta, preparar a ordem
-        final_decision = KamilaFinalDecision(
-            action="execute_trade",
-            agent_target=AgentName.AETHERTRADER,
-            asset=data.asset,
-            trade_type="market",
-            side=athena_signal,  # 'buy' ou 'sell'
-            amount_usd=100.0
-        )
+    trade_proposal = TradeDecisionProposal(
+        asset=data.asset, trade_type="market", side=trade_decision,
+        amount_usd=100.0, reasoning="Initial proposal based on signals."
+    )
 
-        print(f"Decisão: EXECUTAR TRADE. Enviando ordem para Aethertrader: {final_decision.dict()}")
-
-        # Fazer a chamada de API para o Aethertrader para executar o trade
+    async with httpx.AsyncClient() as client:
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{AETHERTRADER_URL}/execute_trade",
-                    json=final_decision.dict(),
-                    timeout=10.0
-                )
-                response.raise_for_status()
+            polaris_response = await client.post(f"{POLARIS_URL}/review", json=trade_proposal.dict(), timeout=10.0)
+            polaris_response.raise_for_status()
+            polaris_rec = PolarisRecommendation(**polaris_response.json())
+            if not polaris_rec.decision_approved:
+                return {"status": "trade_vetoed", "details": polaris_rec.dict()}
 
-                receipt = response.json()
-                print(f"Trade executado com sucesso. Recibo: {receipt}")
+            gaia_input = GaiaPortfolioImpactAnalysis(asset=trade_proposal.asset, side=trade_proposal.side, proposed_amount_usd=trade_proposal.amount_usd)
+            gaia_response = await client.post(f"{GAIA_URL}/analyze_portfolio_impact", json=gaia_input.dict(), timeout=10.0)
+            gaia_response.raise_for_status()
+            gaia_adjustment = GaiaPortfolioAdjustment(**gaia_response.json())
 
-                return {
-                    "status": "trade_executed",
-                    "details": receipt
-                }
+            final_decision = KamilaFinalDecision(
+                action="execute_trade", agent_target=AgentName.AETHERTRADER,
+                asset=data.asset, trade_type=trade_proposal.trade_type,
+                side=trade_proposal.side, amount_usd=gaia_adjustment.adjusted_amount_usd
+            )
 
+            aethertrader_response = await client.post(f"{AETHERTRADER_URL}/execute_trade", json=final_decision.dict(), timeout=10.0)
+            aethertrader_response.raise_for_status()
+            receipt = aethertrader_response.json()
+
+            # A chamada para o reporting.py será adicionada na próxima etapa
+
+            return {"status": "trade_executed", "details": receipt}
         except httpx.RequestError as e:
-            print(f"Erro ao se comunicar com Aethertrader: {e}")
-            raise HTTPException(status_code=503, detail=f"Aethertrader indisponível: {e}")
-        except Exception as e:
-            print(f"Erro inesperado durante a execução: {e}")
-            raise HTTPException(status_code=500, detail="Erro interno ao executar trade.")
-    else:
-        # Se o sinal for 'hold' ou a confiança for baixa, nenhuma ação é tomada
-        reason = f"sinal de '{athena_signal}' com confiança insuficiente ({athena_confidence:.2f} < {CONFIDENCE_THRESHOLD})"
-        if athena_signal == 'hold':
-            reason = "sinal de 'hold' recebido de Athena"
-
-        print(f"Decisão: MANTER (HOLD). Motivo: {reason}.")
-        return {
-            "status": "action_hold",
-            "details": {
-                "reason": reason,
-                "asset": data.asset
-            }
-        }
+            raise HTTPException(status_code=503, detail=f"Agent communication error: {e}")
 
 @app.get("/health")
 def health():
