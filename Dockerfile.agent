@@ -1,0 +1,22 @@
+# Use uma imagem oficial e slim do Python
+FROM python:3.12-slim
+
+# Defina o diretório de trabalho dentro do container
+WORKDIR /app
+
+# Crie um usuário não-root para segurança
+RUN useradd --create-home --shell /bin/bash sakauser
+USER sakauser
+WORKDIR /home/sakauser/app
+
+# Copia as dependências primeiro para aproveitar o cache do Docker
+COPY --chown=sakauser:sakauser requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copia todo o código da aplicação
+# Isso garante que saka/shared, etc., estejam disponíveis para importação
+COPY --chown=sakauser:sakauser . .
+
+# Expõe a porta padrão que os agentes usarão
+EXPOSE 8000

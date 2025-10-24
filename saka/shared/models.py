@@ -2,9 +2,12 @@ from pydantic import BaseModel, Field
 from typing import Literal, Optional, List
 from enum import Enum
 
-# --- Enums para Padronização ---
+# ==============================================================================
+# ENUMS - Fonte única da verdade para valores categóricos
+# ==============================================================================
 
 class AgentName(str, Enum):
+    """Nomes canônicos para cada agente, usados para roteamento e logging."""
     KAMILA = "kamila_ceo"
     POLARIS = "polaris_advisor"
     ORION = "orion_cfo"
@@ -14,99 +17,84 @@ class AgentName(str, Enum):
     HERMES = "hermes_hf"
     CRONOS = "cronos_cycles"
     GAIA = "gaia_diversification"
+    ORCHESTRATOR = "orchestrator"
 
 class TradeSignal(str, Enum):
+    """Sinais de negociação padronizados."""
     BUY = "buy"
     SELL = "sell"
     HOLD = "hold"
 
 class TradeType(str, Enum):
+    """Tipos de ordem padronizados."""
     MARKET = "market"
     LIMIT = "limit"
 
-# --- Modelos de Input/Output para Agentes de Análise ---
+class MacroImpact(str, Enum):
+    """Níveis de impacto de eventos macroeconômicos."""
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+# ==============================================================================
+# MODELOS DE DADOS - Contratos de API para comunicação entre agentes
+# ==============================================================================
+
+# --- Modelos de Requisição (Inputs para os agentes) ---
+
+class AnalysisRequest(BaseModel):
+    """Requisição genérica para análise de um ativo."""
+    asset: str = Field(..., description="O ativo a ser analisado, ex: 'BTC/USD'")
+    historical_prices: Optional[List[float]] = Field(None, description="Lista de preços de fechamento recentes para análises de volatilidade ou técnicas.")
+
+# --- Modelos de Resposta (Outputs dos agentes de análise) ---
+
+class SentinelRiskOutput(BaseModel):
+    asset: str
+    risk_level: float = Field(..., ge=0.0, le=1.0, description="Nível de risco normalizado de 0 a 1.")
+    volatility: float = Field(..., description="Volatilidade calculada (desvio padrão dos retornos).")
+    can_trade: bool = Field(..., description="Veto de segurança. Se False, a negociação deve ser bloqueada.")
+    reason: str
 
 class AthenaSentimentOutput(BaseModel):
     asset: str
     sentiment_score: float = Field(..., ge=-1.0, le=1.0)
     signal: TradeSignal
     confidence: float = Field(..., ge=0.0, le=1.0)
-    source_summary: str
 
-class SentinelRiskOutput(BaseModel):
-    asset: str
-    risk_level: float = Field(..., ge=0.0, le=1.0)
-    volatility: float
-    can_trade: bool = True
-    reason: Optional[str] = None
-
-class CronosTechnicalOutput(BaseModel):
-    asset: str
-    rsi: float = Field(..., description="Índice de Força Relativa (RSI) de 14 dias")
-    summary: str
-
-class OrionMacroOutput(BaseModel):
-    economic_indicator: str
-    impact: Literal["high", "medium", "low"]
-    summary: str
-
-# --- Modelos para Decisão e Execução ---
-
-class TradeDecisionProposal(BaseModel):
-    asset: str
-    trade_type: TradeType
-    side: TradeSignal
-    amount_usd: float
-    reasoning: str
-
-class PolarisRecommendation(BaseModel):
-    decision_approved: bool
-    confidence: float
-    remarks: Optional[str] = None
-
-class GaiaPortfolioImpactAnalysis(BaseModel):
-    asset: str
-    side: Literal["buy", "sell"]
-    proposed_amount_usd: float
-
-class GaiaPortfolioAdjustment(BaseModel):
-    adjusted_amount_usd: float
-    reasoning: str
-
-class KamilaFinalDecision(BaseModel):
-    action: Literal["execute_trade"]
-    agent_target: Literal[AgentName.AETHERTRADER, AgentName.HERMES]
-    asset: str
-    trade_type: TradeType
-    side: Literal["buy", "sell"]
-    amount_usd: float
-
-class TradeExecutionReceipt(BaseModel):
-    trade_id: str
-    status: Literal["success", "failed"]
-    executed_price: float
-    timestamp: str
-
-# --- Modelos para Requisições de Análise (usados pelo backtester) ---
-
-class AthenaRequest(BaseModel):
-    asset: str
-
-class SentinelRequest(BaseModel):
-    asset: str
-
-class CronosRequest(BaseModel):
-    asset: str
-    close_prices: List[float]
-
-class OrionRequest(BaseModel):
-    market: str
-
-# --- Modelo para Agregação de Dados para Kamila ---
+# --- Modelos para o Fluxo de Decisão e Execução ---
 
 class ConsolidatedDataInput(BaseModel):
+    """Input para a Kamila, agregando todas as análises."""
     asset: str
-    athena_analysis: AthenaSentimentOutput
     sentinel_analysis: SentinelRiskOutput
-    cronos_analysis: CronosTechnicalOutput
-    orion_analysis: OrionMacroOutput
+    athena_analysis: Optional[AthenaSentimentOutput] = None
+    # Adicionar outros outputs de análise aqui (Cronos, Orion, etc.)
+
+class KamilaFinalDecision(BaseModel):
+    """Decisão final da Kamila, enviada para execução."""
+    action: Literal["execute_trade", "hold"]
+    agent_target: Optional[AgentName] = None
+    asset: Optional[str] = None
+    trade_type: Optional[TradeType] = None
+    side: Optional[TradeSignal] = None
+    amount_usd: Optional[float] = None
+    reason: str
+
+class TradeExecutionReceipt(BaseModel):
+    """Recibo de uma ordem executada pelo Aethertrader."""
+    trade_id: str
+    status: Literal["success", "failed"]
+    asset: str
+    side: TradeSignal
+    executed_price: float
+    amount_usd: float
+    timestamp: str
+
+# --- Modelo de Erro Padrão ---
+
+class ErrorResponse(BaseModel):
+    """Resposta de erro padronizada para todas as APIs."""
+    error: str
+    details: Optional[str] = None
+    source_agent: AgentName

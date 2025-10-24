@@ -1,65 +1,38 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-import os
-import httpx
-from saka.shared.models import *
+from fastapi import FastAPI, Depends
+from saka.shared.models import ConsolidatedDataInput, KamilaFinalDecision, AgentName
+from saka.shared.security import get_api_key
 
-app = FastAPI(title="Kamila (CEO)")
+app = FastAPI(title="Kamila (CEO Agent)")
 
-AETHERTRADER_URL = os.getenv("AETHERTRADER_URL")
-POLARIS_URL = os.getenv("POLARIS_URL")
-GAIA_URL = os.getenv("GAIA_URL")
+@app.post("/decide",
+            response_model=KamilaFinalDecision,
+            dependencies=[Depends(get_api_key)])
+async def make_decision(data: ConsolidatedDataInput):
+    """
+    Lógica de decisão da Kamila (placeholder).
+    Recebe dados consolidados e retorna a decisão final.
+    """
+    # Lógica de decisão principal viria aqui.
+    # Ex: if data.sentinel_analysis.can_trade and ...
 
-class DecisionResponse(BaseModel):
-    status: str
-    details: dict
+    print(f"Kamila recebeu dados para {data.asset}. Risco do Sentinel: {data.sentinel_analysis.risk_level:.2f}")
 
-@app.post("/decide", response_model=DecisionResponse)
-async def make_decision(data: ConsolidatedDataInput, background_tasks: BackgroundTasks):
-    if data.orion_analysis.impact == 'high':
-        return {"status": "action_hold", "details": {"reason": "High macro impact event."}}
+    if not data.sentinel_analysis.can_trade:
+        return KamilaFinalDecision(
+            action="hold",
+            reason=f"Decisão de HOLD devido ao veto do Sentinel: {data.sentinel_analysis.reason}"
+        )
 
-    trade_decision = None
-    if data.athena_analysis.signal == 'buy' and data.athena_analysis.confidence >= 0.75 and data.cronos_analysis.rsi < 30:
-        trade_decision = 'buy'
-    elif data.athena_analysis.signal == 'sell' and data.athena_analysis.confidence >= 0.75 and data.cronos_analysis.rsi > 70:
-        trade_decision = 'sell'
-
-    if not trade_decision:
-        return {"status": "action_hold", "details": {"reason": "Signal criteria not met."}}
-
-    trade_proposal = TradeDecisionProposal(
-        asset=data.asset, trade_type="market", side=trade_decision,
-        amount_usd=100.0, reasoning="Initial proposal based on signals."
+    # Se todas as condições forem atendidas, envia para execução.
+    return KamilaFinalDecision(
+        action="execute_trade",
+        agent_target=AgentName.AETHERTRADER,
+        asset=data.asset,
+        trade_type="market",
+        side="buy", # Lógica para decidir o lado viria aqui
+        amount_usd=100.0, # Lógica de dimensionamento viria aqui
+        reason="Sinal de compra forte com risco aceitável."
     )
-
-    async with httpx.AsyncClient() as client:
-        try:
-            polaris_response = await client.post(f"{POLARIS_URL}/review", json=trade_proposal.dict(), timeout=10.0)
-            polaris_response.raise_for_status()
-            polaris_rec = PolarisRecommendation(**polaris_response.json())
-            if not polaris_rec.decision_approved:
-                return {"status": "trade_vetoed", "details": polaris_rec.dict()}
-
-            gaia_input = GaiaPortfolioImpactAnalysis(asset=trade_proposal.asset, side=trade_proposal.side, proposed_amount_usd=trade_proposal.amount_usd)
-            gaia_response = await client.post(f"{GAIA_URL}/analyze_portfolio_impact", json=gaia_input.dict(), timeout=10.0)
-            gaia_response.raise_for_status()
-            gaia_adjustment = GaiaPortfolioAdjustment(**gaia_response.json())
-
-            final_decision = KamilaFinalDecision(
-                action="execute_trade", agent_target=AgentName.AETHERTRADER,
-                asset=data.asset, trade_type=trade_proposal.trade_type,
-                side=trade_proposal.side, amount_usd=gaia_adjustment.adjusted_amount_usd
-            )
-
-            aethertrader_response = await client.post(f"{AETHERTRADER_URL}/execute_trade", json=final_decision.dict(), timeout=10.0)
-            aethertrader_response.raise_for_status()
-            receipt = aethertrader_response.json()
-
-            # A chamada para o reporting.py será adicionada na próxima etapa
-
-            return {"status": "trade_executed", "details": receipt}
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=503, detail=f"Agent communication error: {e}")
 
 @app.get("/health")
 def health():
