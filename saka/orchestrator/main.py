@@ -2,13 +2,13 @@ import os
 import httpx
 import asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
-from saka.shared.models import AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision, ErrorResponse, AgentName
+from saka.shared.models import AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision, ErrorResponse, AgentName, SentinelRiskOutput
 from saka.shared.security import get_api_key
 
 app = FastAPI(
     title="S.A.K.A. Orchestrator",
     description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.0.0"
+    version="1.0.0" # Reverted to base version
 )
 
 # Carrega URLs e a chave de API a partir do .env
@@ -27,45 +27,44 @@ async def run_decision_flow(request: AnalysisRequest):
     """
     print(f"Iniciando fluxo de decisão em background para o ativo: {request.asset}")
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=20.0) as client:
         try:
             # Chama os agentes de análise em paralelo
-            sentinel_task = client.post(
-                f"{SENTINEL_URL}/analyze",
-                json=request.dict(),
-                headers=INTERNAL_API_HEADERS
-            )
-            # Adicione outras tarefas de análise aqui (athena_task, cronos_task, etc.)
+            sentinel_task = client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS)
 
-            responses = await asyncio.gather(sentinel_task) # Adicione outras tarefas aqui
+            responses = await asyncio.gather(sentinel_task, return_exceptions=True)
 
-            # Valida as respostas
-            for r in responses:
-                r.raise_for_status()
+            valid_responses = []
+            for i, r in enumerate(responses):
+                if isinstance(r, Exception):
+                    agent_name = "Sentinel" # Only one agent for now
+                    print(f"[ERRO NO FLUXO] Falha na comunicação com o agente {agent_name}: {r}")
+                    return
+                try:
+                    r.raise_for_status()
+                    valid_responses.append(r)
+                except httpx.HTTPStatusError as e:
+                    print(f"[ERRO NO FLUXO] O agente {e.request.url} retornou um erro: {e.response.status_code} {e.response.text}")
+                    return
 
-            sentinel_data = responses[0].json()
+            sentinel_data = valid_responses[0].json()
 
-            # Consolida os dados para a Kamila
             consolidated_input = ConsolidatedDataInput(
                 asset=request.asset,
-                sentinel_analysis=sentinel_data
-                # Adicione outros outputs de análise aqui
+                sentinel_analysis=SentinelRiskOutput(**sentinel_data)
             )
 
-            # Envia os dados consolidados para a Kamila
             kamila_response = await client.post(
                 f"{KAMILA_URL}/decide",
                 json=consolidated_input.dict(),
                 headers=INTERNAL_API_HEADERS,
-                timeout=30.0 # Timeout maior para a decisão da Kamila
+                timeout=30.0
             )
             kamila_response.raise_for_status()
 
             final_decision = kamila_response.json()
             print(f"Fluxo de decisão concluído para {request.asset}. Decisão: {final_decision.get('action')}")
 
-        except httpx.RequestError as e:
-            print(f"[ERRO NO FLUXO] Erro de comunicação com o agente: {e.request.url}. Detalhes: {e}")
         except Exception as e:
             print(f"[ERRO NO FLUXO] Erro inesperado durante o fluxo de decisão para {request.asset}. Detalhes: {e}")
 
@@ -74,12 +73,9 @@ async def run_decision_flow(request: AnalysisRequest):
 async def trigger_decision_cycle(
     request: AnalysisRequest,
     background_tasks: BackgroundTasks,
-    # O próprio orquestrador também pode ser protegido
-    # api_key: str = Depends(get_api_key)
 ):
     """
     Recebe uma solicitação para iniciar um ciclo de decisão.
-    Retorna uma resposta imediata e inicia o fluxo de trabalho em background.
     """
     background_tasks.add_task(run_decision_flow, request)
     return {
