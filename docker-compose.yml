@@ -1,28 +1,128 @@
 version: '3.8'
 
+networks:
+  saka-network:
+    driver: bridge
+
 services:
   orchestrator:
     build:
       context: .
-      dockerfile: src/orchestrator/Dockerfile
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/orchestrator/requirements.txt
+        AGENT_WORKDIR: /app/saka/orchestrator
     ports:
       - "8000:8000"
     networks:
-      - saka_network
+      - saka-network
+    environment:
+      - KAMILA_URL=http://kamila-ceo:8000
+      - ATHENA_URL=http://athena-sentiment:8000
+      - SENTINEL_URL=http://sentinel-risk:8000
+      - CRONOS_URL=http://cronos-cycles:8000
+      - ORION_URL=http://orion-cfo:8000
 
-  kamila:
+  kamila-ceo:
     build:
       context: .
-      dockerfile: src/agents/Dockerfile
+      dockerfile: saka/Dockerfile.base
       args:
-        AGENT_NAME: kamila
-    depends_on:
-      - orchestrator
-    environment:
-      - ORCHESTRATOR_URL=http://orchestrator:8000
+        REQUIREMENTS_PATH: saka/agents/kamila_ceo/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/kamila_ceo
+    ports:
+      - "8001:8000"
     networks:
-      - saka_network
+      - saka-network
+    environment:
+      - AETHERTRADER_URL=http://aethertrader-manager:8000
+      - POLARIS_URL=http://polaris-advisor:8000
+      - GAIA_URL=http://gaia-diversification:8000
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_WHATSAPP_FROM=${TWILIO_WHATSAPP_FROM}
+      - USER_WHATSAPP_TO=${USER_WHATSAPP_TO}
 
-networks:
-  saka_network:
-    driver: bridge
+  athena-sentiment:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/athena_sentiment/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/athena_sentiment
+    ports:
+      - "8002:8000"
+    networks:
+      - saka-network
+
+  sentinel-risk:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/sentinel_risk/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/sentinel_risk
+    ports:
+      - "8003:8000"
+    networks:
+      - saka-network
+
+  aethertrader-manager:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/aethertrader_manager/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/aethertrader_manager
+    ports:
+      - "8004:8000"
+    networks:
+      - saka-network
+
+  cronos-cycles:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/cronos_cycles/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/cronos_cycles
+    ports:
+      - "8005:8000"
+    networks:
+      - saka-network
+
+  polaris-advisor:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/polaris_advisor/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/polaris_advisor
+    ports:
+      - "8006:8000"
+    networks:
+      - saka-network
+
+  orion-cfo:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/orion_cfo/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/orion_cfo
+    ports:
+      - "8007:8000"
+    networks:
+      - saka-network
+
+  gaia-diversification:
+    build:
+      context: .
+      dockerfile: saka/Dockerfile.base
+      args:
+        REQUIREMENTS_PATH: saka/agents/gaia_diversification/requirements.txt
+        AGENT_WORKDIR: /app/saka/agents/gaia_diversification
+    ports:
+      - "8008:8000"
+    networks:
+      - saka-network
