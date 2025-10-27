@@ -2,17 +2,18 @@ import os
 import httpx
 import asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
-from saka.shared.models import AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision, ErrorResponse, AgentName, SentinelRiskOutput
+from saka.shared.models import AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision, ErrorResponse, AgentName, SentinelRiskOutput, CronosTechnicalOutput
 from saka.shared.security import get_api_key
 
 app = FastAPI(
     title="S.A.K.A. Orchestrator",
     description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.0.0" # Reverted to base version
+    version="1.1.0"
 )
 
 # Carrega URLs e a chave de API a partir do .env
 SENTINEL_URL = os.getenv("SENTINEL_URL")
+CRONOS_URL = os.getenv("CRONOS_URL")
 KAMILA_URL = os.getenv("KAMILA_URL")
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
 
@@ -30,14 +31,17 @@ async def run_decision_flow(request: AnalysisRequest):
     async with httpx.AsyncClient(timeout=20.0) as client:
         try:
             # Chama os agentes de análise em paralelo
-            sentinel_task = client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS)
+            tasks = [
+                client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
+                client.post(f"{CRONOS_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS)
+            ]
 
-            responses = await asyncio.gather(sentinel_task, return_exceptions=True)
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
 
             valid_responses = []
             for i, r in enumerate(responses):
                 if isinstance(r, Exception):
-                    agent_name = "Sentinel" # Only one agent for now
+                    agent_name = "Sentinel" if i == 0 else "Cronos"
                     print(f"[ERRO NO FLUXO] Falha na comunicação com o agente {agent_name}: {r}")
                     return
                 try:
@@ -47,11 +51,12 @@ async def run_decision_flow(request: AnalysisRequest):
                     print(f"[ERRO NO FLUXO] O agente {e.request.url} retornou um erro: {e.response.status_code} {e.response.text}")
                     return
 
-            sentinel_data = valid_responses[0].json()
+            sentinel_data, cronos_data = [r.json() for r in valid_responses]
 
             consolidated_input = ConsolidatedDataInput(
                 asset=request.asset,
-                sentinel_analysis=SentinelRiskOutput(**sentinel_data)
+                sentinel_analysis=SentinelRiskOutput(**sentinel_data),
+                cronos_analysis=CronosTechnicalOutput(**cronos_data)
             )
 
             kamila_response = await client.post(

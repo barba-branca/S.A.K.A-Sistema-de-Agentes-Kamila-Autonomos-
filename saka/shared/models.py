@@ -62,14 +62,19 @@ class AthenaSentimentOutput(BaseModel):
     signal: TradeSignal
     confidence: float = Field(..., ge=0.0, le=1.0)
 
+class CronosTechnicalOutput(BaseModel):
+    asset: str
+    rsi: float = Field(..., description="Índice de Força Relativa (14 períodos) calculado manualmente.")
+
 # --- Modelos para o Fluxo de Decisão e Execução ---
 
 class ConsolidatedDataInput(BaseModel):
     """Input para a Kamila, agregando todas as análises."""
     asset: str
     sentinel_analysis: SentinelRiskOutput
+    cronos_analysis: "CronosTechnicalOutput" # Forward reference
     athena_analysis: Optional[AthenaSentimentOutput] = None
-    # Adicionar outros outputs de análise aqui (Cronos, Orion, etc.)
+    # Adicionar outros outputs de análise aqui (Orion, etc.)
 
 class KamilaFinalDecision(BaseModel):
     """Decisão final da Kamila, enviada para execução."""

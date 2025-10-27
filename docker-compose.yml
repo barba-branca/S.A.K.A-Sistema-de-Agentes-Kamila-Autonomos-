@@ -28,6 +28,7 @@ services:
       kamila_ceo: { condition: service_healthy }
       sentinel_risk: { condition: service_healthy }
       aethertrader_manager: { condition: service_healthy }
+      cronos_cycles: { condition: service_healthy }
     command: uvicorn saka.orchestrator.main:app --host 0.0.0.0 --port 8000 --reload
 
   kamila_ceo:
@@ -47,6 +48,11 @@ services:
     <<: *saka-service
     container_name: saka_aethertrader_manager
     command: uvicorn saka.agents.aethertrader_manager.main:app --host 0.0.0.0 --port 8000 --reload
+
+  cronos_cycles:
+    <<: *saka-service
+    container_name: saka_cronos_cycles
+    command: uvicorn saka.agents.cronos_cycles.main:app --host 0.0.0.0 --port 8000 --reload
 
 networks:
   saka_net:
