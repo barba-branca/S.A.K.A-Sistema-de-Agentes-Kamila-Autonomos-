@@ -1,5 +1,22 @@
+# Framework e Servidor
 fastapi
-uvicorn
-requests
-twilio
+uvicorn[standard]
+
+# Comunicação e SDKs
+httpx # Cliente HTTP moderno para comunicação entre agentes
+docker # Docker SDK para o Orquestrador
+twilio # Para envio de relatórios via WhatsApp
+
+# Análise de Dados
+pandas
+numpy
+
+# Utilitários
+pydantic
+python-dotenv # Para carregar variáveis de ambiente de arquivos .env
+pyjwt # Para a camada de segurança opcional
+passlib[bcrypt] # Para hashing de chaves de API
+
+# Testes
 pytest
+pytest-asyncio
