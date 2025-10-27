@@ -1,16 +1,17 @@
 import os
 import httpx
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, BackgroundTasks
 from saka.shared.models import (
     ConsolidatedDataInput, KamilaFinalDecision, AgentName, TradeSignal, MacroImpact,
     GaiaPositionSizingRequest, GaiaPositionSizingResponse
 )
 from saka.shared.security import get_api_key
+from saka.shared.reporting import send_whatsapp_report
 
 app = FastAPI(
     title="Kamila (CEO Agent)",
-    description="Toma decisões de negociação com base em dados consolidados de outros agentes.",
-    version="1.3.0" # Added Gaia integration for position sizing
+    description="Toma decisões de negociação e envia relatórios.",
+    version="1.4.0" # Added WhatsApp reporting
 )
 
 GAIA_URL = os.getenv("GAIA_URL")
@@ -20,9 +21,10 @@ INTERNAL_API_HEADERS = {"X-Internal-API-Key": INTERNAL_API_KEY}
 @app.post("/decide",
             response_model=KamilaFinalDecision,
             dependencies=[Depends(get_api_key)])
-async def make_decision(data: ConsolidatedDataInput):
+async def make_decision(data: ConsolidatedDataInput, background_tasks: BackgroundTasks):
     """
-    Lógica de decisão da Kamila, agora consultando Gaia para o dimensionamento da posição.
+    Lógica de decisão da Kamila. Se um trade for decidido, um relatório
+    é enviado via WhatsApp em background.
     """
     # 1. Veto de Risco do Sentinel
     if not data.sentinel_analysis.can_trade:
@@ -41,7 +43,7 @@ async def make_decision(data: ConsolidatedDataInput):
     elif rsi > 70:
         trade_signal = TradeSignal.SELL
 
-    # 4. Se houver um sinal, consultar Gaia para dimensionamento
+    # 4. Se houver um sinal, consultar Gaia e preparar para execução
     if trade_signal:
         try:
             async with httpx.AsyncClient() as client:
@@ -56,7 +58,7 @@ async def make_decision(data: ConsolidatedDataInput):
                 response.raise_for_status()
                 gaia_decision = GaiaPositionSizingResponse(**response.json())
 
-                return KamilaFinalDecision(
+                final_decision = KamilaFinalDecision(
                     action="execute_trade",
                     agent_target=AgentName.AETHERTRADER,
                     asset=data.asset,
@@ -65,6 +67,18 @@ async def make_decision(data: ConsolidatedDataInput):
                     amount_usd=gaia_decision.amount_usd,
                     reason=f"SINAL DE {trade_signal.upper()}: RSI ({rsi:.2f}). {gaia_decision.reasoning}"
                 )
+
+                # Formata e envia o relatório em background
+                report_body = (
+                    f"🚨 ALERTA S.A.K.A. 🚨\n\n"
+                    f"Ordem de {trade_signal.upper()} para {data.asset} autorizada.\n\n"
+                    f"Valor: ${gaia_decision.amount_usd:,.2f}\n"
+                    f"Motivo: {final_decision.reason}"
+                )
+                background_tasks.add_task(send_whatsapp_report, report_body)
+
+                return final_decision
+
         except httpx.RequestError as e:
             raise HTTPException(status_code=503, detail=f"Falha na comunicação com Gaia: {e}")
         except Exception as e:
