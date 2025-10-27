@@ -38,6 +38,7 @@ services:
     depends_on:
       sentinel_risk: { condition: service_healthy }
       aethertrader_manager: { condition: service_healthy }
+      gaia_diversification: { condition: service_healthy }
     command: uvicorn saka.agents.kamila_ceo.main:app --host 0.0.0.0 --port 8000 --reload
 
   sentinel_risk:
@@ -59,6 +60,11 @@ services:
     <<: *saka-service
     container_name: saka_orion_cfo
     command: uvicorn saka.agents.orion_cfo.main:app --host 0.0.0.0 --port 8000 --reload
+
+  gaia_diversification:
+    <<: *saka-service
+    container_name: saka_gaia_diversification
+    command: uvicorn saka.agents.gaia_diversification.main:app --host 0.0.0.0 --port 8000 --reload
 
 networks:
   saka_net:

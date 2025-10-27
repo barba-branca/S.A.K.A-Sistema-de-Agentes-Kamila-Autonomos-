@@ -74,9 +74,20 @@ class OrionMacroOutput(BaseModel):
 
 # --- Modelos para o Fluxo de Decisão e Execução ---
 
+class GaiaPositionSizingRequest(BaseModel):
+    asset: str
+    entry_price: float
+    # Em um sistema real, incluiria o stop_loss_price, capital_total, etc.
+
+class GaiaPositionSizingResponse(BaseModel):
+    asset: str
+    amount_usd: float
+    reasoning: str
+
 class ConsolidatedDataInput(BaseModel):
     """Input para a Kamila, agregando todas as análises."""
     asset: str
+    current_price: float # Adicionado para que Kamila saiba o preço atual
     sentinel_analysis: SentinelRiskOutput
     cronos_analysis: CronosTechnicalOutput
     orion_analysis: "OrionMacroOutput" # Forward reference

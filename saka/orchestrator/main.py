@@ -11,7 +11,7 @@ from saka.shared.security import get_api_key
 app = FastAPI(
     title="S.A.K.A. Orchestrator",
     description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.3.0" # Added Orion integration
+    version="1.4.0" # Pass current price to Kamila
 )
 
 # Carrega URLs
@@ -28,7 +28,6 @@ async def get_kamila_decision(request: AnalysisRequest) -> dict:
     Executa o fluxo de análise completo e retorna a decisão da Kamila.
     """
     async with httpx.AsyncClient(timeout=20.0) as client:
-        # Chama os agentes de análise em paralelo
         tasks = [
             client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
             client.post(f"{CRONOS_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
@@ -37,7 +36,6 @@ async def get_kamila_decision(request: AnalysisRequest) -> dict:
 
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Validação e extração de dados
         agent_names = ["Sentinel", "Cronos", "Orion"]
         results = {}
         for i, r in enumerate(responses):
@@ -50,15 +48,17 @@ async def get_kamila_decision(request: AnalysisRequest) -> dict:
             except httpx.HTTPStatusError as e:
                 raise HTTPException(status_code=502, detail=f"O agente {agent_name} ({e.request.url}) retornou um erro: {e.response.status_code} {e.response.text}")
 
-        # Consolidação dos dados
+        # Extrai o preço mais recente para passar para a Kamila
+        current_price = request.historical_prices[-1] if request.historical_prices else 0
+
         consolidated_input = ConsolidatedDataInput(
             asset=request.asset,
+            current_price=current_price,
             sentinel_analysis=SentinelRiskOutput(**results["Sentinel"]),
             cronos_analysis=CronosTechnicalOutput(**results["Cronos"]),
             orion_analysis=OrionMacroOutput(**results["Orion"])
         )
 
-        # Obter decisão da Kamila
         kamila_response = await client.post(
             f"{KAMILA_URL}/decide",
             json=consolidated_input.dict(),
@@ -94,4 +94,5 @@ async def trigger_decision_cycle(request: AnalysisRequest, background_tasks: Bac
 
 @app.get("/health", summary="Endpoint de Health Check")
 def health():
+    """Endpoint público para health checks."""
     return {"status": "ok"}
