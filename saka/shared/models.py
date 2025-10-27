@@ -105,13 +105,16 @@ class KamilaFinalDecision(BaseModel):
 
 class TradeExecutionReceipt(BaseModel):
     """Recibo de uma ordem executada pelo Aethertrader."""
-    trade_id: str
-    status: Literal["success", "failed"]
+    order_id: str = Field(..., description="ID da ordem retornado pela corretora.")
+    trade_id: Optional[str] = Field(None, description="ID do trade específico, se aplicável.")
+    status: Literal["success", "failed", "test_success"]
     asset: str
     side: TradeSignal
-    executed_price: float
+    executed_price: float = Field(..., description="Preço médio de execução.")
+    executed_quantity: float = Field(..., description="Quantidade do ativo que foi negociada.")
     amount_usd: float
     timestamp: str
+    raw_response: Optional[dict] = Field(None, description="Resposta completa da API da corretora para depuração.")
 
 # --- Modelo de Erro Padrão ---
 

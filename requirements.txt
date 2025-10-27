@@ -6,6 +6,7 @@ uvicorn[standard]
 httpx # Cliente HTTP moderno para comunicação entre agentes
 docker # Docker SDK para o Orquestrador
 twilio # Para envio de relatórios via WhatsApp
+python-binance # Cliente para a API da Binance
 
 # Análise de Dados
 pandas
