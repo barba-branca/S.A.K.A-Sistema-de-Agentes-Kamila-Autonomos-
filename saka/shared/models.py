@@ -66,15 +66,21 @@ class CronosTechnicalOutput(BaseModel):
     asset: str
     rsi: float = Field(..., description="Índice de Força Relativa (14 períodos) calculado manualmente.")
 
+class OrionMacroOutput(BaseModel):
+    asset: str
+    impact: MacroImpact
+    event_name: str
+    summary: str
+
 # --- Modelos para o Fluxo de Decisão e Execução ---
 
 class ConsolidatedDataInput(BaseModel):
     """Input para a Kamila, agregando todas as análises."""
     asset: str
     sentinel_analysis: SentinelRiskOutput
-    cronos_analysis: "CronosTechnicalOutput" # Forward reference
+    cronos_analysis: CronosTechnicalOutput
+    orion_analysis: "OrionMacroOutput" # Forward reference
     athena_analysis: Optional[AthenaSentimentOutput] = None
-    # Adicionar outros outputs de análise aqui (Orion, etc.)
 
 class KamilaFinalDecision(BaseModel):
     """Decisão final da Kamila, enviada para execução."""

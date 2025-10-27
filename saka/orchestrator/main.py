@@ -2,58 +2,63 @@ import os
 import httpx
 import asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
-from saka.shared.models import AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision, ErrorResponse, AgentName, SentinelRiskOutput, CronosTechnicalOutput
+from saka.shared.models import (
+    AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision,
+    ErrorResponse, AgentName, SentinelRiskOutput, CronosTechnicalOutput, OrionMacroOutput
+)
 from saka.shared.security import get_api_key
 
 app = FastAPI(
     title="S.A.K.A. Orchestrator",
     description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.2.0" # Added sync endpoint for backtesting
+    version="1.3.0" # Added Orion integration
 )
 
-# Carrega URLs e a chave de API a partir do .env
+# Carrega URLs
 SENTINEL_URL = os.getenv("SENTINEL_URL")
 CRONOS_URL = os.getenv("CRONOS_URL")
+ORION_URL = os.getenv("ORION_URL")
 KAMILA_URL = os.getenv("KAMILA_URL")
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
-
-# Prepara o cabeçalho de autenticação que será enviado para outros agentes
 INTERNAL_API_HEADERS = {"X-Internal-API-Key": INTERNAL_API_KEY}
 
 
 async def get_kamila_decision(request: AnalysisRequest) -> dict:
     """
-    Função principal que executa o fluxo de análise e retorna a decisão da Kamila.
-    Esta função é síncrona no sentido de que espera pela decisão final.
+    Executa o fluxo de análise completo e retorna a decisão da Kamila.
     """
     async with httpx.AsyncClient(timeout=20.0) as client:
         # Chama os agentes de análise em paralelo
         tasks = [
             client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
-            client.post(f"{CRONOS_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS)
+            client.post(f"{CRONOS_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
+            client.post(f"{ORION_URL}/analyze_events", json=request.dict(), headers=INTERNAL_API_HEADERS)
         ]
 
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        valid_responses = []
+        # Validação e extração de dados
+        agent_names = ["Sentinel", "Cronos", "Orion"]
+        results = {}
         for i, r in enumerate(responses):
+            agent_name = agent_names[i]
             if isinstance(r, Exception):
-                agent_name = "Sentinel" if i == 0 else "Cronos"
                 raise HTTPException(status_code=503, detail=f"Falha na comunicação com o agente {agent_name}: {r}")
             try:
                 r.raise_for_status()
-                valid_responses.append(r)
+                results[agent_name] = r.json()
             except httpx.HTTPStatusError as e:
-                raise HTTPException(status_code=502, detail=f"O agente {e.request.url} retornou um erro: {e.response.status_code} {e.response.text}")
+                raise HTTPException(status_code=502, detail=f"O agente {agent_name} ({e.request.url}) retornou um erro: {e.response.status_code} {e.response.text}")
 
-        sentinel_data, cronos_data = [r.json() for r in valid_responses]
-
+        # Consolidação dos dados
         consolidated_input = ConsolidatedDataInput(
             asset=request.asset,
-            sentinel_analysis=SentinelRiskOutput(**sentinel_data),
-            cronos_analysis=CronosTechnicalOutput(**cronos_data)
+            sentinel_analysis=SentinelRiskOutput(**results["Sentinel"]),
+            cronos_analysis=CronosTechnicalOutput(**results["Cronos"]),
+            orion_analysis=OrionMacroOutput(**results["Orion"])
         )
 
+        # Obter decisão da Kamila
         kamila_response = await client.post(
             f"{KAMILA_URL}/decide",
             json=consolidated_input.dict(),
@@ -66,20 +71,14 @@ async def get_kamila_decision(request: AnalysisRequest) -> dict:
 
 @app.post("/trigger_decision_cycle_sync", response_model=KamilaFinalDecision, dependencies=[Depends(get_api_key)])
 async def trigger_decision_cycle_sync(request: AnalysisRequest):
-    """
-    Endpoint SÍNCRONO para o backtester.
-    Executa o fluxo de decisão completo e retorna a decisão final da Kamila.
-    """
+    """Endpoint SÍNCRONO para o backtester."""
     print(f"Recebida requisição síncrona para: {request.asset}")
     return await get_kamila_decision(request)
 
 
 @app.post("/trigger_decision_cycle", status_code=202)
 async def trigger_decision_cycle(request: AnalysisRequest, background_tasks: BackgroundTasks):
-    """
-    Endpoint ASSÍNCRONO para operação normal (live trading).
-    Inicia o fluxo de decisão em background e retorna imediatamente.
-    """
+    """Endpoint ASSÍNCRONO para operação normal."""
     print(f"Iniciando fluxo de decisão em background para o ativo: {request.asset}")
 
     async def decision_flow_wrapper():
@@ -95,5 +94,4 @@ async def trigger_decision_cycle(request: AnalysisRequest, background_tasks: Bac
 
 @app.get("/health", summary="Endpoint de Health Check")
 def health():
-    """Endpoint público para health checks."""
     return {"status": "ok"}

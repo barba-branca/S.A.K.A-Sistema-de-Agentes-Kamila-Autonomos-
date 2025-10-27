@@ -29,6 +29,7 @@ services:
       sentinel_risk: { condition: service_healthy }
       aethertrader_manager: { condition: service_healthy }
       cronos_cycles: { condition: service_healthy }
+      orion_cfo: { condition: service_healthy }
     command: uvicorn saka.orchestrator.main:app --host 0.0.0.0 --port 8000 --reload
 
   kamila_ceo:
@@ -53,6 +54,11 @@ services:
     <<: *saka-service
     container_name: saka_cronos_cycles
     command: uvicorn saka.agents.cronos_cycles.main:app --host 0.0.0.0 --port 8000 --reload
+
+  orion_cfo:
+    <<: *saka-service
+    container_name: saka_orion_cfo
+    command: uvicorn saka.agents.orion_cfo.main:app --host 0.0.0.0 --port 8000 --reload
 
 networks:
   saka_net:
