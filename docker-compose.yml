@@ -46,6 +46,7 @@ services:
     depends_on:
       aethertrader_manager: { condition: service_healthy }
       gaia_diversification: { condition: service_healthy }
+      polaris_advisor: { condition: service_healthy }
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   sentinel_risk:
@@ -88,6 +89,13 @@ services:
     container_name: saka_athena_sentiment
     build:
       context: ./saka/agents/athena_sentiment
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  polaris_advisor:
+    <<: *saka-service
+    container_name: saka_polaris_advisor
+    build:
+      context: ./saka/agents/polaris_advisor
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
 networks:

@@ -72,11 +72,18 @@ class OrionMacroOutput(BaseModel):
     event_name: str
     summary: str
 
-class AthenaSentimentOutput(BaseModel):
+# --- Modelos de Governança e Revisão ---
+
+class TradeProposal(BaseModel):
     asset: str
-    sentiment_score: float = Field(..., ge=-1.0, le=1.0)
-    signal: TradeSignal
-    confidence: float = Field(..., ge=0.0, le=1.0)
+    side: TradeSignal
+    trade_type: TradeType
+    entry_price: float
+    reasoning: str
+
+class PolarisApproval(BaseModel):
+    decision_approved: bool
+    remarks: str
 
 # --- Modelos para o Fluxo de Decisão e Execução ---
 
