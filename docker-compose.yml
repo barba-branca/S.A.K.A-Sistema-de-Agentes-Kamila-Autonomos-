@@ -35,6 +35,7 @@ services:
       aethertrader_manager: { condition: service_healthy }
       cronos_cycles: { condition: service_healthy }
       orion_cfo: { condition: service_healthy }
+      athena_sentiment: { condition: service_healthy }
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   kamila_ceo:
@@ -80,6 +81,13 @@ services:
     container_name: saka_gaia_diversification
     build:
       context: ./saka/agents/gaia_diversification
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  athena_sentiment:
+    <<: *saka-service
+    container_name: saka_athena_sentiment
+    build:
+      context: ./saka/agents/athena_sentiment
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
 networks:

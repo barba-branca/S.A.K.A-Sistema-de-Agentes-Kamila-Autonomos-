@@ -72,6 +72,12 @@ class OrionMacroOutput(BaseModel):
     event_name: str
     summary: str
 
+class AthenaSentimentOutput(BaseModel):
+    asset: str
+    sentiment_score: float = Field(..., ge=-1.0, le=1.0)
+    signal: TradeSignal
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
 # --- Modelos para o Fluxo de Decisão e Execução ---
 
 class GaiaPositionSizingRequest(BaseModel):
@@ -90,8 +96,8 @@ class ConsolidatedDataInput(BaseModel):
     current_price: float # Adicionado para que Kamila saiba o preço atual
     sentinel_analysis: SentinelRiskOutput
     cronos_analysis: CronosTechnicalOutput
-    orion_analysis: "OrionMacroOutput" # Forward reference
-    athena_analysis: Optional[AthenaSentimentOutput] = None
+    orion_analysis: OrionMacroOutput
+    athena_analysis: "AthenaSentimentOutput" # Forward reference
 
 class KamilaFinalDecision(BaseModel):
     """Decisão final da Kamila, enviada para execução."""
