@@ -4,96 +4,62 @@ import asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from saka.shared.models import (
     AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision,
-    ErrorResponse, AgentName, SentinelRiskOutput, CronosTechnicalOutput,
-    OrionMacroOutput, AthenaSentimentOutput
+    SentinelRiskOutput, CronosTechnicalOutput, OrionMacroOutput, AthenaSentimentOutput
 )
 from saka.shared.security import get_api_key
 
-app = FastAPI(
-    title="S.A.K.A. Orchestrator",
-    description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.5.0" # Added Athena integration
-)
+app = FastAPI(title="S.A.K.A. Orchestrator")
 
-# Carrega URLs
-SENTINEL_URL = os.getenv("SENTINEL_URL")
-CRONOS_URL = os.getenv("CRONOS_URL")
-ORION_URL = os.getenv("ORION_URL")
-ATHENA_URL = os.getenv("ATHENA_URL")
-KAMILA_URL = os.getenv("KAMILA_URL")
-INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
-INTERNAL_API_HEADERS = {"X-Internal-API-Key": INTERNAL_API_KEY}
-
+# URLs e Chave de API
+URLS = {
+    "SENTINEL": os.getenv("SENTINEL_URL"), "CRONOS": os.getenv("CRONOS_URL"),
+    "ORION": os.getenv("ORION_URL"), "ATHENA": os.getenv("ATHENA_URL"),
+    "KAMILA": os.getenv("KAMILA_URL")
+}
+INTERNAL_API_HEADERS = {"X-Internal-API-Key": os.getenv("INTERNAL_API_KEY")}
 
 async def get_kamila_decision(request: AnalysisRequest) -> dict:
-    """
-    Executa o fluxo de análise completo e retorna a decisão da Kamila.
-    """
     async with httpx.AsyncClient(timeout=20.0) as client:
-        # Chama os agentes de análise em paralelo
         tasks = [
-            client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
-            client.post(f"{CRONOS_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
-            client.post(f"{ORION_URL}/analyze_events", json=request.dict(), headers=INTERNAL_API_HEADERS),
-            client.post(f"{ATHENA_URL}/analyze_sentiment", json=request.dict(), headers=INTERNAL_API_HEADERS)
+            client.post(f"{URLS['SENTINEL']}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
+            client.post(f"{URLS['CRONOS']}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
+            client.post(f"{URLS['ORION']}/analyze_events", json=request.dict(), headers=INTERNAL_API_HEADERS),
+            client.post(f"{URLS['ATHENA']}/analyze_sentiment", json=request.dict(), headers=INTERNAL_API_HEADERS)
         ]
-
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Validação e extração de dados
-        agent_names = ["Sentinel", "Cronos", "Orion", "Athena"]
         results = {}
         for i, r in enumerate(responses):
-            agent_name = agent_names[i]
-            if isinstance(r, Exception):
-                raise HTTPException(status_code=503, detail=f"Falha na comunicação com o agente {agent_name}: {r}")
-            try:
-                r.raise_for_status()
-                results[agent_name] = r.json()
-            except httpx.HTTPStatusError as e:
-                raise HTTPException(status_code=502, detail=f"O agente {agent_name} ({e.request.url}) retornou um erro: {e.response.status_code} {e.response.text}")
-
-        current_price = request.historical_prices[-1] if request.historical_prices else 0
+            agent_name = list(URLS.keys())[i]
+            if isinstance(r, Exception): raise HTTPException(status_code=503, detail=f"Falha na comunicação com {agent_name}: {r}")
+            r.raise_for_status()
+            results[agent_name] = r.json()
 
         consolidated_input = ConsolidatedDataInput(
-            asset=request.asset,
-            current_price=current_price,
-            sentinel_analysis=SentinelRiskOutput(**results["Sentinel"]),
-            cronos_analysis=CronosTechnicalOutput(**results["Cronos"]),
-            orion_analysis=OrionMacroOutput(**results["Orion"]),
-            athena_analysis=AthenaSentimentOutput(**results["Athena"])
+            asset=request.asset, current_price=request.historical_prices[-1],
+            sentinel_analysis=SentinelRiskOutput(**results["SENTINEL"]),
+            cronos_analysis=CronosTechnicalOutput(**results["CRONOS"]),
+            orion_analysis=OrionMacroOutput(**results["ORION"]),
+            athena_analysis=AthenaSentimentOutput(**results["ATHENA"])
         )
 
-        kamila_response = await client.post(
-            f"{KAMILA_URL}/decide",
-            json=consolidated_input.dict(),
-            headers=INTERNAL_API_HEADERS,
-            timeout=30.0
-        )
+        kamila_response = await client.post(f"{URLS['KAMILA']}/decide", json=consolidated_input.dict(), headers=INTERNAL_API_HEADERS)
         kamila_response.raise_for_status()
         return kamila_response.json()
 
-
 @app.post("/trigger_decision_cycle_sync", response_model=KamilaFinalDecision, dependencies=[Depends(get_api_key)])
 async def trigger_decision_cycle_sync(request: AnalysisRequest):
-    """Endpoint SÍNCRONO para o backtester."""
     return await get_kamila_decision(request)
-
 
 @app.post("/trigger_decision_cycle", status_code=202)
 async def trigger_decision_cycle(request: AnalysisRequest, background_tasks: BackgroundTasks):
-    """Endpoint ASSÍNCRONO para operação normal."""
-    async def decision_flow_wrapper():
+    async def wrapper():
         try:
-            decision = await get_kamila_decision(request)
-            print(f"Fluxo de decisão em background concluído. Decisão: {decision.get('action')}")
+            await get_kamila_decision(request)
         except Exception as e:
-            print(f"[ERRO NO FLUXO EM BACKGROUND] Detalhes: {e}")
+            print(f"ERRO NO FLUXO EM BACKGROUND: {e}")
+    background_tasks.add_task(wrapper)
+    return {"message": "Ciclo de decisão iniciado."}
 
-    background_tasks.add_task(decision_flow_wrapper)
-    return {"message": "Ciclo de decisão iniciado em background.", "asset": request.asset}
-
-
-@app.get("/health", summary="Endpoint de Health Check")
-def health():
-    return {"status": "ok"}
+@app.get("/health")
+def health(): return {"status": "ok"}

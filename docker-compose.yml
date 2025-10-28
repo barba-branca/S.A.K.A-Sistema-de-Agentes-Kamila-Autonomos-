@@ -32,11 +32,9 @@ services:
     depends_on:
       kamila_ceo: { condition: service_healthy }
       sentinel_risk: { condition: service_healthy }
-      aethertrader_manager: { condition: service_healthy }
       cronos_cycles: { condition: service_healthy }
       orion_cfo: { condition: service_healthy }
       athena_sentiment: { condition: service_healthy }
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   kamila_ceo:
     <<: *saka-service

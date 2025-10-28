@@ -1,1 +1,0 @@
-# Este arquivo torna o diretório 'saka' um pacote Python.

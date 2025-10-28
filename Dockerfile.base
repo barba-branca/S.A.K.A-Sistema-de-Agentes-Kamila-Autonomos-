@@ -14,9 +14,8 @@ COPY --chown=sakauser:sakauser requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Copia toda a estrutura de pacotes 'saka' para a imagem base
+COPY --chown=sakauser:sakauser saka/ ./saka
+
 # Expõe a porta padrão que os agentes usarão
 EXPOSE 8000
-
-# Copia toda a estrutura de pacotes 'saka' para a imagem base
-# Isso garante que o código compartilhado esteja disponível para todos os agentes
-COPY --chown=sakauser:sakauser saka/ ./saka
