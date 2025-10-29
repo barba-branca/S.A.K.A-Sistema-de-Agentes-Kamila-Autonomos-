@@ -42,6 +42,8 @@ def calculate_manual_macd(prices: pd.Series, fast_period: int = 12, slow_period:
             response_model=CronosTechnicalOutput,
             dependencies=[Depends(get_api_key)])
 async def analyze_technical_indicators(request: AnalysisRequest):
+    if not request.historical_prices:
+        raise HTTPException(status_code=400, detail="A lista de preços históricos não pode estar vazia.")
     try:
         price_series = pd.Series(request.historical_prices, dtype=float)
 

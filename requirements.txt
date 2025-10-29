@@ -22,3 +22,6 @@ passlib[bcrypt]
 pytest
 pytest-asyncio
 pytest-mock
+
+# Visualização de Dados
+matplotlib
