@@ -59,6 +59,9 @@ services:
     container_name: saka_aethertrader_manager
     build:
       context: ./saka/agents/aethertrader_manager
+    depends_on:
+      db:
+        condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   cronos_cycles:
@@ -96,6 +99,28 @@ services:
       context: ./saka/agents/polaris_advisor
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
+  db:
+    image: postgres:15-alpine
+    container_name: saka_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - saka_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   saka_net:
     driver: bridge
+
+volumes:
+  postgres_data:

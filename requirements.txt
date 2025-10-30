@@ -23,5 +23,10 @@ pytest
 pytest-asyncio
 pytest-mock
 
+# Banco de Dados
+sqlalchemy
+psycopg2-binary
+alembic
+
 # Visualização de Dados
 matplotlib
