@@ -8,6 +8,10 @@ from saka.shared.models import (
 )
 from saka.shared.security import get_api_key
 from saka.shared.reporting import send_whatsapp_report
+from saka.shared.logging_config import configure_logging, get_logger
+
+configure_logging()
+logger = get_logger("kamila_ceo")
 
 app = FastAPI(
     title="Kamila (CEO Agent)",
@@ -24,11 +28,17 @@ INTERNAL_API_HEADERS = {"X-Internal-API-Key": INTERNAL_API_KEY}
             response_model=KamilaFinalDecision,
             dependencies=[Depends(get_api_key)])
 async def make_decision(data: ConsolidatedDataInput, background_tasks: BackgroundTasks):
+    logger.info("Iniciando ciclo de decisão", asset=data.asset, current_price=data.current_price)
+
     # 1. Vetos de Risco
     if not data.sentinel_analysis.can_trade:
-        return KamilaFinalDecision(action="hold", reason=f"VETO (Sentinel): {data.sentinel_analysis.reason}")
+        reason = f"VETO (Sentinel): {data.sentinel_analysis.reason}"
+        logger.warning(reason)
+        return KamilaFinalDecision(action="hold", reason=reason)
     if data.orion_analysis.impact == MacroImpact.HIGH:
-        return KamilaFinalDecision(action="hold", reason=f"VETO (Orion): {data.orion_analysis.summary}")
+        reason = f"VETO (Orion): {data.orion_analysis.summary}"
+        logger.warning(reason)
+        return KamilaFinalDecision(action="hold", reason=reason)
 
     # 2. Geração de Sinal por Confluência
     cronos = data.cronos_analysis
@@ -40,7 +50,9 @@ async def make_decision(data: ConsolidatedDataInput, background_tasks: Backgroun
     if is_buy_signal: final_signal = TradeSignal.BUY
     elif is_sell_signal: final_signal = TradeSignal.SELL
     else:
-        return KamilaFinalDecision(action="hold", reason=f"HOLD: Nenhuma confluência de sinais encontrada.")
+        reason = f"HOLD: Nenhuma confluência de sinais encontrada."
+        logger.info(reason, rsi=cronos.rsi, macd_cross=cronos.is_bullish_crossover, sentiment=athena.sentiment_score)
+        return KamilaFinalDecision(action="hold", reason=reason)
 
     # 3. Revisão do Polaris
     try:
@@ -50,13 +62,18 @@ async def make_decision(data: ConsolidatedDataInput, background_tasks: Backgroun
                 asset=data.asset, side=final_signal, trade_type=TradeType.MARKET,
                 entry_price=data.current_price, reasoning=proposal_reason
             )
+
+            logger.info("Enviando proposta para revisão do Polaris", proposal=trade_proposal.model_dump())
             polaris_response = await client.post(f"{POLARIS_URL}/review_trade", json=trade_proposal.model_dump(), headers=INTERNAL_API_HEADERS)
             polaris_response.raise_for_status()
             polaris_approval = PolarisApproval(**polaris_response.json())
+
             if not polaris_approval.decision_approved:
+                logger.warning("Trade vetado pelo Polaris", remarks=polaris_approval.remarks)
                 return KamilaFinalDecision(action="hold", reason=polaris_approval.remarks)
 
             # 4. Dimensionamento do Gaia
+            logger.info("Proposta aprovada. Solicitando dimensionamento para Gaia.")
             gaia_request = GaiaPositionSizingRequest(asset=data.asset, entry_price=data.current_price)
             gaia_response = await client.post(f"{GAIA_URL}/calculate_position_size", json=gaia_request.model_dump(), headers=INTERNAL_API_HEADERS)
             gaia_response.raise_for_status()
@@ -68,10 +85,15 @@ async def make_decision(data: ConsolidatedDataInput, background_tasks: Backgroun
                 trade_type=TradeType.MARKET, side=final_signal, amount_usd=gaia_decision.amount_usd,
                 reason=f"{proposal_reason} | {polaris_approval.remarks} | {gaia_decision.reasoning}"
             )
+
+            logger.info("Decisão final: EXECUTAR TRADE", decision=final_decision.model_dump())
+
             report_body = f"🚨 S.A.K.A. 🚨\n\nOrdem de {final_signal.upper()} para {data.asset} AUTORIZADA.\n\nValor: ${gaia_decision.amount_usd:,.2f}"
             background_tasks.add_task(send_whatsapp_report, report_body)
+
             return final_decision
     except Exception as e:
+        logger.error("Erro durante a fase de revisão/dimensionamento", exc_info=e)
         raise HTTPException(status_code=500, detail=f"Erro na fase de revisão/dimensionamento: {e}")
 
 @app.get("/health")

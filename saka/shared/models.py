@@ -39,7 +39,7 @@ class ConsolidatedDataInput(BaseModel):
 class KamilaFinalDecision(BaseModel):
     action: str; agent_target: Optional[AgentName] = None; asset: Optional[str] = None; trade_type: Optional[TradeType] = None; side: Optional[TradeSignal] = None; amount_usd: Optional[float] = None; reason: str
 class TradeExecutionReceipt(BaseModel):
-    order_id: str; trade_id: Optional[str] = None; status: str; asset: str; side: TradeSignal; executed_price: float; executed_quantity: float; amount_usd: float; timestamp: str; raw_response: Optional[dict] = None
+    order_id: str; status: str; asset: str; side: TradeSignal; executed_price: float; executed_quantity: float; amount_usd: float; timestamp: str; raw_response: Optional[dict] = None
 
 class ErrorResponse(BaseModel):
     error: str; details: Optional[str] = None; source_agent: AgentName

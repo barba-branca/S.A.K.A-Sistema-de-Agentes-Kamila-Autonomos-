@@ -7,11 +7,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 # A engine só será criada se a URL estiver definida.
 # Isso evita erros durante a coleta de testes em ambientes sem .env
-if DATABASE_URL:
-    engine = create_engine(DATABASE_URL)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-else:
-    engine = None
-    SessionLocal = None
+engine = create_engine(DATABASE_URL) if DATABASE_URL else None
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
