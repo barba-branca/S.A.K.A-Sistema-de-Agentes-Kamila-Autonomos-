@@ -1,61 +1,45 @@
-from fastapi import FastAPI, HTTPException, Depends
-from saka.shared.models import AnalysisRequest, SentinelRiskOutput, ErrorResponse, AgentName
+from fastapi import FastAPI, Depends, HTTPException
+from saka.shared.models import AnalysisRequest, SentinelRiskOutput
 from saka.shared.security import get_api_key
+from saka.shared.logging_config import configure_logging, get_logger
 import numpy as np
 
-app = FastAPI(
-    title="Sentinel (Risk Agent)",
-    description="Calcula a volatilidade e avalia o risco de negociação.",
-    version="1.1.0" # Version bump
-)
+configure_logging()
+logger = get_logger("sentinel_risk")
 
-VOLATILITY_THRESHOLD = 0.05 # Variação diária de 5%
+app = FastAPI(title="Sentinel (Risk Agent)")
 
-@app.post("/analyze",
-            response_model=SentinelRiskOutput,
-            responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-            dependencies=[Depends(get_api_key)]) # <-- Protege este endpoint
+VOLATILITY_THRESHOLD = 0.05
+
+@app.post("/analyze", response_model=SentinelRiskOutput, dependencies=[Depends(get_api_key)])
 async def analyze_risk(request: AnalysisRequest):
-    """
-    Analisa o risco de um ativo calculando a volatilidade de seus preços.
-    Este endpoint é protegido e requer uma chave de API interna.
-    """
+    logger.info("Recebida requisição de análise de risco", asset=request.asset)
     if not request.historical_prices or len(request.historical_prices) < 10:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "Bad Request",
-                "details": "Dados de preços históricos insuficientes. São necessários pelo menos 10 pontos.",
-                "source_agent": AgentName.SENTINEL
-            }
-        )
-
+        logger.warning("Análise de risco falhou: dados insuficientes", asset=request.asset)
+        raise HTTPException(status_code=400, detail="Dados insuficientes para análise de risco.")
     try:
         prices = np.array(request.historical_prices)
         returns = np.diff(prices) / prices[:-1]
         volatility = np.std(returns)
-
         can_trade = volatility <= VOLATILITY_THRESHOLD
-        risk_level = min(volatility / (VOLATILITY_THRESHOLD * 2), 1.0)
+
+        if not can_trade:
+            logger.warning("ALERTA DE ALTO RISCO: Volatilidade excede o limiar.",
+                           asset=request.asset, volatility=volatility, threshold=VOLATILITY_THRESHOLD)
+        else:
+            logger.info("Análise de risco concluída, volatilidade dentro dos limites.",
+                        asset=request.asset, volatility=volatility)
 
         return SentinelRiskOutput(
             asset=request.asset,
-            risk_level=risk_level,
+            risk_level=min(volatility / (VOLATILITY_THRESHOLD * 2), 1.0),
             volatility=volatility,
             can_trade=can_trade,
-            reason=f"Volatilidade calculada: {volatility:.4f}. Limite: {VOLATILITY_THRESHOLD:.4f}."
+            reason=f"Volatilidade: {volatility:.4f}"
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "Internal Server Error",
-                "details": str(e),
-                "source_agent": AgentName.SENTINEL
-            }
-        )
+        logger.error("Erro inesperado na análise de risco", asset=request.asset, exc_info=e)
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/health", summary="Endpoint de Health Check")
-def health():
-    """Endpoint público para health checks. Não requer autenticação."""
-    return {"status": "ok"}
+@app.get("/health")
+def health(): return {"status": "ok"}

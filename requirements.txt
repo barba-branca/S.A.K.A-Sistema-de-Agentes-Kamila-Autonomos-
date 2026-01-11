@@ -3,9 +3,10 @@ fastapi
 uvicorn[standard]
 
 # Comunicação e SDKs
-httpx # Cliente HTTP moderno para comunicação entre agentes
-docker # Docker SDK para o Orquestrador
-twilio # Para envio de relatórios via WhatsApp
+httpx
+docker
+twilio
+python-binance
 
 # Análise de Dados
 pandas
@@ -13,10 +14,22 @@ numpy
 
 # Utilitários
 pydantic
-python-dotenv # Para carregar variáveis de ambiente de arquivos .env
-pyjwt # Para a camada de segurança opcional
-passlib[bcrypt] # Para hashing de chaves de API
+python-dotenv
+pyjwt
+passlib[bcrypt]
+
+# Logging
+structlog
 
 # Testes
 pytest
 pytest-asyncio
+pytest-mock
+
+# Banco de Dados
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Visualização de Dados
+matplotlib

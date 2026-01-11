@@ -1,0 +1,16 @@
+# Arquivos de ambiente - NUNCA comitar segredos!
+.env
+
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Cache de testes
+.pytest_cache
+
+# Ambiente virtual
+venv/
+env/
+.venv/

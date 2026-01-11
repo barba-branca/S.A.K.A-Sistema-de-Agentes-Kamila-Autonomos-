@@ -1,1 +1,0 @@
-# Este arquivo torna o diretório 'shared' um submódulo do pacote 'saka'.

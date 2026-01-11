@@ -1,39 +1,33 @@
 from fastapi import FastAPI, Depends
-from saka.shared.models import AnalysisRequest, ErrorResponse, AgentName
+from saka.shared.models import AnalysisRequest, OrionMacroOutput, MacroImpact
 from saka.shared.security import get_api_key
+from saka.shared.logging_config import configure_logging, get_logger
 import random
 
-app = FastAPI(
-    title="Orion (Macroeconomic Analyst)",
-    description="Analisa o calendário macroeconômico em busca de eventos de alto impacto.",
-    version="1.0.0"
-)
+configure_logging()
+logger = get_logger("orion_cfo")
 
-# Em um sistema real, isso seria uma chamada a uma API de calendário econômico.
-# Aqui, simulamos o resultado para fins de arquitetura.
-@app.post("/analyze_events", dependencies=[Depends(get_api_key)])
+app = FastAPI(title="Orion (Macroeconomic Analyst)")
+
+@app.post("/analyze_events", response_model=OrionMacroOutput, dependencies=[Depends(get_api_key)])
 async def analyze_events(request: AnalysisRequest):
-    """
-    Simula a análise de eventos macroeconômicos.
-    Retorna um nível de impacto que pode ser usado como veto.
-    """
-    # Simula que em 10% dos dias há um evento de alto impacto (ex: CPI, FOMC)
+    logger.info("Recebida requisição de análise de eventos macro", asset=request.asset)
+
     if random.random() < 0.1:
-        return {
-            "asset": request.asset,
-            "impact": "high",
-            "event_name": "Simulated High-Impact Event (e.g., CPI Report)",
-            "summary": "Negociação bloqueada devido a evento macroeconômico de alto impacto."
-        }
+        impact = MacroImpact.HIGH
+        event_name = "Simulated High-Impact Event"
+        summary = "Negociação bloqueada devido a evento macro de alto impacto."
+        logger.warning("Evento de alto impacto detectado", event=event_name)
+    else:
+        impact = MacroImpact.LOW
+        event_name = "No Major Events"
+        summary = "Nenhum evento de alto impacto detectado."
+        logger.info("Nenhum evento macro de alto impacto detectado.")
 
-    return {
-        "asset": request.asset,
-        "impact": "low",
-        "event_name": "No Major Events",
-        "summary": "Nenhum evento de alto impacto detectado."
-    }
+    return OrionMacroOutput(
+        asset=request.asset, impact=impact,
+        event_name=event_name, summary=summary
+    )
 
-@app.get("/health", summary="Endpoint de Health Check")
-def health():
-    """Endpoint público para health checks."""
-    return {"status": "ok"}
+@app.get("/health")
+def health(): return {"status": "ok"}

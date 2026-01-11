@@ -2,9 +2,6 @@ version: '3.9'
 
 x-saka-service: &saka-service
   restart: unless-stopped
-  build:
-    context: .
-    dockerfile: Dockerfile.agent
   networks:
     - saka_net
   env_file:
@@ -17,9 +14,17 @@ x-saka-service: &saka-service
     start_period: 20s
 
 services:
+  saka-base:
+    image: saka-base:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+
   orchestrator:
     <<: *saka-service
     container_name: saka_orchestrator
+    build:
+      context: ./saka/orchestrator
     ports:
       - "8080:8000"
     volumes:
@@ -27,39 +32,95 @@ services:
     depends_on:
       kamila_ceo: { condition: service_healthy }
       sentinel_risk: { condition: service_healthy }
-      aethertrader_manager: { condition: service_healthy }
       cronos_cycles: { condition: service_healthy }
       orion_cfo: { condition: service_healthy }
-    command: uvicorn saka.orchestrator.main:app --host 0.0.0.0 --port 8000 --reload
+      athena_sentiment: { condition: service_healthy }
 
   kamila_ceo:
     <<: *saka-service
     container_name: saka_kamila_ceo
+    build:
+      context: ./saka/agents/kamila_ceo
     depends_on:
-      sentinel_risk: { condition: service_healthy }
       aethertrader_manager: { condition: service_healthy }
-    command: uvicorn saka.agents.kamila_ceo.main:app --host 0.0.0.0 --port 8000 --reload
+      gaia_diversification: { condition: service_healthy }
+      polaris_advisor: { condition: service_healthy }
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   sentinel_risk:
     <<: *saka-service
     container_name: saka_sentinel_risk
-    command: uvicorn saka.agents.sentinel_risk.main:app --host 0.0.0.0 --port 8000 --reload
+    build:
+      context: ./saka/agents/sentinel_risk
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   aethertrader_manager:
     <<: *saka-service
     container_name: saka_aethertrader_manager
-    command: uvicorn saka.agents.aethertrader_manager.main:app --host 0.0.0.0 --port 8000 --reload
+    build:
+      context: ./saka/agents/aethertrader_manager
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   cronos_cycles:
     <<: *saka-service
     container_name: saka_cronos_cycles
-    command: uvicorn saka.agents.cronos_cycles.main:app --host 0.0.0.0 --port 8000 --reload
+    build:
+      context: ./saka/agents/cronos_cycles
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   orion_cfo:
     <<: *saka-service
     container_name: saka_orion_cfo
-    command: uvicorn saka.agents.orion_cfo.main:app --host 0.0.0.0 --port 8000 --reload
+    build:
+      context: ./saka/agents/orion_cfo
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  gaia_diversification:
+    <<: *saka-service
+    container_name: saka_gaia_diversification
+    build:
+      context: ./saka/agents/gaia_diversification
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  athena_sentiment:
+    <<: *saka-service
+    container_name: saka_athena_sentiment
+    build:
+      context: ./saka/agents/athena_sentiment
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  polaris_advisor:
+    <<: *saka-service
+    container_name: saka_polaris_advisor
+    build:
+      context: ./saka/agents/polaris_advisor
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  db:
+    image: postgres:15-alpine
+    container_name: saka_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - saka_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   saka_net:
     driver: bridge
+
+volumes:
+  postgres_data:
