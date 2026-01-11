@@ -16,15 +16,6 @@ def calculate_manual_rsi(prices: list[float], period: int = 14) -> float:
     if len(prices) < period + 1:
         raise ValueError("Dados insuficientes para calcular o RSI para o período especificado.")
 
-    # Optimization: RSI uses EMA which decays over time.
-    # We need sufficient history for convergence. A safe multiplier is 35x the period
-    # (e.g., 14 * 35 = 490 ~ 500) to reach machine precision.
-    # We use a minimum of 500 or 35 * period to be safe for larger periods.
-    truncation_limit = max(500, period * 35)
-
-    if len(prices) > truncation_limit:
-        prices = prices[-truncation_limit:]
-
     series = pd.Series(prices)
     delta = series.diff()
 
