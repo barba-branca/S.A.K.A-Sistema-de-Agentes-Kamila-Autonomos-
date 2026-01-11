@@ -20,3 +20,5 @@ passlib[bcrypt] # Para hashing de chaves de API
 # Testes
 pytest
 pytest-asyncio
+pydantic-settings
+structlog
