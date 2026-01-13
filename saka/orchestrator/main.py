@@ -1,6 +1,7 @@
 import os
 import httpx
 import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from saka.shared.models import (
     AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision,
@@ -8,10 +9,23 @@ from saka.shared.models import (
 )
 from saka.shared.security import get_api_key
 
+# Global HTTP Client
+http_client: httpx.AsyncClient = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize the global HTTP client
+    global http_client
+    http_client = httpx.AsyncClient(timeout=20.0)
+    yield
+    # Shutdown: Close the global HTTP client
+    await http_client.aclose()
+
 app = FastAPI(
     title="S.A.K.A. Orchestrator",
     description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.3.0" # Added Orion integration
+    version="1.3.0", # Added Orion integration
+    lifespan=lifespan
 )
 
 # Carrega URLs
@@ -26,47 +40,58 @@ INTERNAL_API_HEADERS = {"X-Internal-API-Key": INTERNAL_API_KEY}
 async def get_kamila_decision(request: AnalysisRequest) -> dict:
     """
     Executa o fluxo de análise completo e retorna a decisão da Kamila.
+    Utiliza um cliente HTTP compartilhado para performance.
     """
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        # Chama os agentes de análise em paralelo
-        tasks = [
-            client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
-            client.post(f"{CRONOS_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
-            client.post(f"{ORION_URL}/analyze_events", json=request.dict(), headers=INTERNAL_API_HEADERS)
-        ]
+    global http_client
 
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
+    # Use global client if available (app context), otherwise create one (scripts/tests without app)
+    if http_client is None:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            return await _execute_decision_flow(client, request)
+    else:
+        return await _execute_decision_flow(http_client, request)
 
-        # Validação e extração de dados
-        agent_names = ["Sentinel", "Cronos", "Orion"]
-        results = {}
-        for i, r in enumerate(responses):
-            agent_name = agent_names[i]
-            if isinstance(r, Exception):
-                raise HTTPException(status_code=503, detail=f"Falha na comunicação com o agente {agent_name}: {r}")
-            try:
-                r.raise_for_status()
-                results[agent_name] = r.json()
-            except httpx.HTTPStatusError as e:
-                raise HTTPException(status_code=502, detail=f"O agente {agent_name} ({e.request.url}) retornou um erro: {e.response.status_code} {e.response.text}")
+async def _execute_decision_flow(client: httpx.AsyncClient, request: AnalysisRequest) -> dict:
+    """Lógica interna do fluxo de decisão para reutilização."""
+    # Chama os agentes de análise em paralelo
+    tasks = [
+        client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
+        client.post(f"{CRONOS_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
+        client.post(f"{ORION_URL}/analyze_events", json=request.dict(), headers=INTERNAL_API_HEADERS)
+    ]
 
-        # Consolidação dos dados
-        consolidated_input = ConsolidatedDataInput(
-            asset=request.asset,
-            sentinel_analysis=SentinelRiskOutput(**results["Sentinel"]),
-            cronos_analysis=CronosTechnicalOutput(**results["Cronos"]),
-            orion_analysis=OrionMacroOutput(**results["Orion"])
-        )
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Obter decisão da Kamila
-        kamila_response = await client.post(
-            f"{KAMILA_URL}/decide",
-            json=consolidated_input.dict(),
-            headers=INTERNAL_API_HEADERS,
-            timeout=30.0
-        )
-        kamila_response.raise_for_status()
-        return kamila_response.json()
+    # Validação e extração de dados
+    agent_names = ["Sentinel", "Cronos", "Orion"]
+    results = {}
+    for i, r in enumerate(responses):
+        agent_name = agent_names[i]
+        if isinstance(r, Exception):
+            raise HTTPException(status_code=503, detail=f"Falha na comunicação com o agente {agent_name}: {r}")
+        try:
+            r.raise_for_status()
+            results[agent_name] = r.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=502, detail=f"O agente {agent_name} ({e.request.url}) retornou um erro: {e.response.status_code} {e.response.text}")
+
+    # Consolidação dos dados
+    consolidated_input = ConsolidatedDataInput(
+        asset=request.asset,
+        sentinel_analysis=SentinelRiskOutput(**results["Sentinel"]),
+        cronos_analysis=CronosTechnicalOutput(**results["Cronos"]),
+        orion_analysis=OrionMacroOutput(**results["Orion"])
+    )
+
+    # Obter decisão da Kamila
+    kamila_response = await client.post(
+        f"{KAMILA_URL}/decide",
+        json=consolidated_input.dict(),
+        headers=INTERNAL_API_HEADERS,
+        timeout=30.0
+    )
+    kamila_response.raise_for_status()
+    return kamila_response.json()
 
 
 @app.post("/trigger_decision_cycle_sync", response_model=KamilaFinalDecision, dependencies=[Depends(get_api_key)])
