@@ -16,6 +16,14 @@ def calculate_manual_rsi(prices: list[float], period: int = 14) -> float:
     if len(prices) < period + 1:
         raise ValueError("Dados insuficientes para calcular o RSI para o período especificado.")
 
+    # Optimization: Truncate history to avoid processing unnecessary data.
+    # We need enough data for the EMA to converge.
+    # max(500, period * 35) ensures we have enough history for accurate calculation
+    # while keeping performance constant O(1) relative to total history size.
+    limit = max(500, period * 35)
+    if len(prices) > limit:
+        prices = prices[-limit:]
+
     series = pd.Series(prices)
     delta = series.diff()
 
