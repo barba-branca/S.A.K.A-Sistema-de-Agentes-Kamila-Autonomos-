@@ -7,7 +7,7 @@ python-multipart # Para upload de arquivos
 httpx # Cliente HTTP moderno para comunicação entre agentes
 docker # Docker SDK para o Orquestrador
 twilio # Para envio de relatórios via WhatsApp
-boto3 # SDK da AWS para uploads no Hermes
+azure-storage-blob # SDK da Azure para uploads no Hermes
 
 # Análise de Dados
 pandas

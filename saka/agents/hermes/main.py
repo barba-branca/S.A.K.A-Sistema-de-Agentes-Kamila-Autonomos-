@@ -1,32 +1,23 @@
 import os
-import boto3
 import uuid
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from botocore.exceptions import NoCredentialsError, ClientError
+from azure.storage.blob import BlobServiceClient
+from azure.core.exceptions import AzureError
 
 app = FastAPI(
     title="Hermes - File Handler",
-    description="Agent responsible for handling file uploads to AWS S3.",
-    version="1.0.0"
+    description="Agent responsible for handling file uploads to Azure Blob Storage.",
+    version="1.1.0"
 )
 
 # Configuration
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION_NAME = os.getenv("AWS_REGION_NAME", "us-east-1")
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+AZURE_CONNECTION_STRING = os.getenv("AZURE_CONNECTION_STRING")
+AZURE_CONTAINER_NAME = os.getenv("AZURE_CONTAINER_NAME")
 
-# Initialize S3 Client
-def get_s3_client():
-    if not all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET_NAME]):
-        # Allow running without creds for health checks, but uploads will fail
+def get_blob_service_client():
+    if not AZURE_CONNECTION_STRING:
         return None
-    return boto3.client(
-        's3',
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        region_name=AWS_REGION_NAME
-    )
+    return BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
 
 @app.get("/health")
 def health():
@@ -34,36 +25,38 @@ def health():
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    s3 = get_s3_client()
-    if not s3:
-        raise HTTPException(status_code=500, detail="AWS credentials or bucket name not configured.")
+    if not AZURE_CONNECTION_STRING or not AZURE_CONTAINER_NAME:
+        raise HTTPException(status_code=500, detail="Azure configuration (Connection String or Container Name) is missing.")
 
     try:
+        blob_service_client = get_blob_service_client()
+
+        # Ensure container exists (optional, mostly for dev convenience)
+        # try:
+        #     blob_service_client.create_container(AZURE_CONTAINER_NAME)
+        # except Exception:
+        #     pass
+
+        container_client = blob_service_client.get_container_client(AZURE_CONTAINER_NAME)
+
         # Generate a unique key using UUID to prevent collisions
         file_extension = os.path.splitext(file.filename)[1]
-        file_key = f"{uuid.uuid4()}{file_extension}"
+        blob_name = f"{uuid.uuid4()}{file_extension}"
 
         # Upload file
-        # file.file is a SpooledTemporaryFile
-        s3.upload_fileobj(
-            file.file,
-            S3_BUCKET_NAME,
-            file_key
-        )
+        blob_client = container_client.get_blob_client(blob_name)
 
-        # Generate Presigned URL (optional, useful for verification)
-        # url = s3.generate_presigned_url('get_object', Params={'Bucket': S3_BUCKET_NAME, 'Key': file_key})
+        # file.file is a SpooledTemporaryFile. upload_blob supports read()
+        blob_client.upload_blob(file.file, overwrite=True)
 
         return {
-            "filename": file_key,
+            "filename": blob_name,
             "message": "Upload successful",
-            "bucket": S3_BUCKET_NAME,
-            "location": f"s3://{S3_BUCKET_NAME}/{file_key}"
+            "container": AZURE_CONTAINER_NAME,
+            "location": blob_client.url
         }
 
-    except NoCredentialsError:
-        raise HTTPException(status_code=500, detail="AWS credentials not found.")
-    except ClientError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except AzureError as e:
+        raise HTTPException(status_code=500, detail=f"Azure Storage error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
