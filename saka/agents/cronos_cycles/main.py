@@ -12,9 +12,16 @@ app = FastAPI(
 def calculate_manual_rsi(prices: list[float], period: int = 14) -> float:
     """
     Calcula o RSI manualmente para uma dada lista de preços usando EMA.
+    Otimaizado para O(1) de tempo de processamento limitando o histórico.
     """
     if len(prices) < period + 1:
         raise ValueError("Dados insuficientes para calcular o RSI para o período especificado.")
+
+    # Truncate history for performance optimization
+    # EMA converges quickly; 500 periods (or 35x period) is sufficient for near-perfect precision
+    truncation_limit = max(500, period * 35)
+    if len(prices) > truncation_limit:
+        prices = prices[-truncation_limit:]
 
     series = pd.Series(prices)
     delta = series.diff()
