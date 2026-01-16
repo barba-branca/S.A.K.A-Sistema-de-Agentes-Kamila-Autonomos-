@@ -30,6 +30,9 @@ services:
       aethertrader_manager: { condition: service_healthy }
       cronos_cycles: { condition: service_healthy }
       orion_cfo: { condition: service_healthy }
+      hermes_hf: { condition: service_healthy }
+    environment:
+      - HERMES_URL=http://hermes_hf:8000
     command: uvicorn saka.orchestrator.main:app --host 0.0.0.0 --port 8000 --reload
 
   kamila_ceo:
@@ -59,6 +62,11 @@ services:
     <<: *saka-service
     container_name: saka_orion_cfo
     command: uvicorn saka.agents.orion_cfo.main:app --host 0.0.0.0 --port 8000 --reload
+
+  hermes_hf:
+    <<: *saka-service
+    container_name: saka_hermes_hf
+    command: uvicorn saka.agents.hermes.main:app --host 0.0.0.0 --port 8000 --reload
 
 networks:
   saka_net:

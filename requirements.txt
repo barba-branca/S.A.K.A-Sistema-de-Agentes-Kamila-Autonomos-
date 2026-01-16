@@ -1,11 +1,13 @@
 # Framework e Servidor
 fastapi
 uvicorn[standard]
+python-multipart # Para upload de arquivos
 
 # Comunicação e SDKs
 httpx # Cliente HTTP moderno para comunicação entre agentes
 docker # Docker SDK para o Orquestrador
 twilio # Para envio de relatórios via WhatsApp
+azure-storage-blob # SDK da Azure para uploads no Hermes
 
 # Análise de Dados
 pandas
