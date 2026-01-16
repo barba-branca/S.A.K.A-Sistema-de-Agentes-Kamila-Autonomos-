@@ -1,7 +1,7 @@
 import os
 import httpx
 import asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, UploadFile, File
 from saka.shared.models import (
     AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision,
     ErrorResponse, AgentName, SentinelRiskOutput, CronosTechnicalOutput, OrionMacroOutput
@@ -11,7 +11,7 @@ from saka.shared.security import get_api_key
 app = FastAPI(
     title="S.A.K.A. Orchestrator",
     description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.3.0" # Added Orion integration
+    version="1.4.0" # Added Hermes integration
 )
 
 # Carrega URLs
@@ -19,6 +19,7 @@ SENTINEL_URL = os.getenv("SENTINEL_URL")
 CRONOS_URL = os.getenv("CRONOS_URL")
 ORION_URL = os.getenv("ORION_URL")
 KAMILA_URL = os.getenv("KAMILA_URL")
+HERMES_URL = os.getenv("HERMES_URL")
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
 INTERNAL_API_HEADERS = {"X-Internal-API-Key": INTERNAL_API_KEY}
 
@@ -90,6 +91,25 @@ async def trigger_decision_cycle(request: AnalysisRequest, background_tasks: Bac
 
     background_tasks.add_task(decision_flow_wrapper)
     return {"message": "Ciclo de decisão iniciado em background.", "asset": request.asset}
+
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Encaminha uploads de arquivos para o agente Hermes."""
+    if not HERMES_URL:
+        raise HTTPException(status_code=503, detail="Hermes service is not configured.")
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            # Re-wrap the file to send to Hermes
+            files = {'file': (file.filename, file.file, file.content_type)}
+            response = await client.post(f"{HERMES_URL}/upload", files=files)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"Hermes error: {e.response.text}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to forward upload: {str(e)}")
 
 
 @app.get("/health", summary="Endpoint de Health Check")
