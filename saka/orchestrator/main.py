@@ -2,16 +2,32 @@ import os
 import httpx
 import asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from contextlib import asynccontextmanager
+from typing import Optional
 from saka.shared.models import (
     AnalysisRequest, ConsolidatedDataInput, KamilaFinalDecision,
     ErrorResponse, AgentName, SentinelRiskOutput, CronosTechnicalOutput, OrionMacroOutput
 )
 from saka.shared.security import get_api_key
 
+# Global HTTP client
+http_client: Optional[httpx.AsyncClient] = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global http_client
+    # Initialize the client with the same timeout
+    http_client = httpx.AsyncClient(timeout=20.0)
+    yield
+    # Clean up the client on shutdown
+    await http_client.aclose()
+    http_client = None
+
 app = FastAPI(
     title="S.A.K.A. Orchestrator",
     description="Orquestra o fluxo de análise e decisão entre os agentes.",
-    version="1.3.0" # Added Orion integration
+    version="1.3.1", # Bump version for optimization
+    lifespan=lifespan
 )
 
 # Carrega URLs
@@ -27,7 +43,15 @@ async def get_kamila_decision(request: AnalysisRequest) -> dict:
     """
     Executa o fluxo de análise completo e retorna a decisão da Kamila.
     """
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    # Use the global client if available, otherwise fallback (mostly for tests without lifespan)
+    if http_client:
+        client = http_client
+        should_close = False
+    else:
+        client = httpx.AsyncClient(timeout=20.0)
+        should_close = True
+
+    try:
         # Chama os agentes de análise em paralelo
         tasks = [
             client.post(f"{SENTINEL_URL}/analyze", json=request.dict(), headers=INTERNAL_API_HEADERS),
@@ -67,6 +91,9 @@ async def get_kamila_decision(request: AnalysisRequest) -> dict:
         )
         kamila_response.raise_for_status()
         return kamila_response.json()
+    finally:
+        if should_close:
+            await client.aclose()
 
 
 @app.post("/trigger_decision_cycle_sync", response_model=KamilaFinalDecision, dependencies=[Depends(get_api_key)])
