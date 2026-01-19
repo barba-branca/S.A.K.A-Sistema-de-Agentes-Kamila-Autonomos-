@@ -105,42 +105,44 @@ def run_backtest(data_filepath: str):
     portfolio = Portfolio()
 
     # Itera sobre os dados, começando após o período de aquecimento
-    for i in range(warmup_period, len(historical_data)):
-        # Janela de dados para análise (passado)
-        analysis_window = historical_data.iloc[i-warmup_period:i]
-        # Dados do dia atual para execução e avaliação
-        current_day_data = historical_data.iloc[i]
-        current_date = current_day_data.name.date()
-        current_price = current_day_data['close']
+    # OPTIMIZATION: Use Session for connection pooling (reuse TCP connection)
+    with requests.Session() as session:
+        for i in range(warmup_period, len(historical_data)):
+            # Janela de dados para análise (passado)
+            analysis_window = historical_data.iloc[i-warmup_period:i]
+            # Dados do dia atual para execução e avaliação
+            current_day_data = historical_data.iloc[i]
+            current_date = current_day_data.name.date()
+            current_price = current_day_data['close']
 
-        # Prepara a requisição para o Orquestrador
-        payload = {
-            "asset": "BTC/USD",
-            "historical_prices": analysis_window['close'].tolist()
-        }
+            # Prepara a requisição para o Orquestrador
+            payload = {
+                "asset": "BTC/USD",
+                "historical_prices": analysis_window['close'].tolist()
+            }
 
-        print(f"\n[ {current_date} ] Preço Atual: ${current_price:.2f} | Valor do Portfólio: ${portfolio.update_value({'BTC/USD': current_price}):.2f}")
+            print(f"\n[ {current_date} ] Preço Atual: ${current_price:.2f} | Valor do Portfólio: ${portfolio.update_value({'BTC/USD': current_price}):.2f}")
 
-        try:
-            response = requests.post(f"{ORCHESTRATOR_URL}/trigger_decision_cycle_sync", json=payload, headers=headers, timeout=45)
-            response.raise_for_status()
+            try:
+                response = session.post(f"{ORCHESTRATOR_URL}/trigger_decision_cycle_sync", json=payload, headers=headers, timeout=45)
+                response.raise_for_status()
 
-            decision = response.json()
-            print(f"Decisão da Kamila recebida: {decision.get('action')}. Motivo: {decision.get('reason')}")
+                decision = response.json()
+                print(f"Decisão da Kamila recebida: {decision.get('action')}. Motivo: {decision.get('reason')}")
 
-            # Executa o trade no portfólio simulado
-            if decision.get('action') == 'execute_trade':
-                portfolio.execute_trade(
-                    asset=decision['asset'],
-                    side=decision['side'],
-                    amount_usd=decision['amount_usd'],
-                    price=current_price # Executa ao preço de fechamento do dia
-                )
+                # Executa o trade no portfólio simulado
+                if decision.get('action') == 'execute_trade':
+                    portfolio.execute_trade(
+                        asset=decision['asset'],
+                        side=decision['side'],
+                        amount_usd=decision['amount_usd'],
+                        price=current_price # Executa ao preço de fechamento do dia
+                    )
 
-        except requests.exceptions.RequestException as e:
-            print(f"Erro ao se comunicar com o Orquestrador: {e}")
-            print("Verifique se os contêineres do S.A.K.A. estão rodando com 'docker compose up'.")
-            break # Interrompe a simulação se a comunicação falhar
+            except requests.exceptions.RequestException as e:
+                print(f"Erro ao se comunicar com o Orquestrador: {e}")
+                print("Verifique se os contêineres do S.A.K.A. estão rodando com 'docker compose up'.")
+                break # Interrompe a simulação se a comunicação falhar
 
     print("\n--- Simulação de Backtesting Concluída ---")
     generate_performance_report(portfolio)
